@@ -115,6 +115,46 @@ void closest_index(grid_t* grid, double x, double y, double z, int* cx, int* cy,
                                                   : p;
 }
 
+double trilinear_interpolate(data_t* dat, double x, double y, double z) {
+    grid_t* grid = &dat->grid;
+    int lx = (int)floor((x - grid->xmin) / (grid->xmax - grid->xmin) * grid->numnodesx);
+    int ly = (int)floor((y - grid->ymin) / (grid->ymax - grid->ymin) * grid->numnodesy);
+    int lz = (int)floor((z - grid->zmin) / (grid->zmax - grid->zmin) * grid->numnodesz);
+
+    // The "bottom" corner must be a full point away from the end
+    lx = (lx < 0) ? 0 : lx;
+    lx = (lx > grid->numnodesx - 2) ? grid->numnodesx - 2 : lx;
+    ly = (ly < 0) ? 0 : ly;
+    ly = (ly > grid->numnodesy - 2) ? grid->numnodesy - 2 : ly;
+    lz = (lz < 0) ? 0 : lz;
+    lz = (lz > grid->numnodesz - 2) ? grid->numnodesz - 2 : lz;
+
+    // Relative distances from "origin" of the cube
+    double x_d = (x - (double)lx) / (grid->xmax - grid->xmin) * grid->numnodesx;
+    double y_d = (y - (double)ly) / (grid->ymax - grid->ymin) * grid->numnodesy;
+    double z_d = (z - (double)lz) / (grid->zmax - grid->zmin) * grid->numnodesz;
+
+    double c_000 = GETVALUE(dat, lx, ly, lz);
+    double c_100 = GETVALUE(dat, lx + 1, ly, lz);
+    double c_001 = GETVALUE(dat, lx, ly, lz + 1);
+    double c_101 = GETVALUE(dat, lx + 1, ly, lz + 1);
+    double c_010 = GETVALUE(dat, lx, ly + 1, lz);
+    double c_110 = GETVALUE(dat, lx + 1, ly + 1, lz);
+    double c_011 = GETVALUE(dat, lx, ly + 1, lz + 1);
+    double c_111 = GETVALUE(dat, lx + 1, ly + 1, lz + 1);
+
+    double c_00 = c_000 * (1 - x_d) + c_100 * x_d;
+    double c_01 = c_001 * (1 - x_d) + c_101 * x_d;
+    double c_10 = c_010 * (1 - x_d) + c_110 * x_d;
+    double c_11 = c_011 * (1 - x_d) + c_111 * x_d;
+
+    double c_0 = c_00 * (1 - y_d) + c_10 * y_d;
+    double c_1 = c_01 * (1 - y_d) + c_11 * y_d;
+
+    double c = c_0 * (1 - z_d) + c_1 * z_d;
+    return c;
+}
+
 void print_source(source_t* source) {
     printf(" Source infos:\n\n");
 
@@ -488,7 +528,7 @@ int read_audiosource(char* filename, source_t* source) {
         return 1;
     }
 
-    int readok = (fread(data, sizeof(double), numsamples, fp) == numsamples);
+    int readok = (fread(data, sizeof(double), numsamples, fp) == (long unsigned int)numsamples);
 
     fclose(fp);
 
@@ -751,18 +791,17 @@ int interpolate_inputmaps(simulation_data_t* simdata, grid_t* simgrid,
                 double y = n * dx;
                 double z = p * dx;
 
-                int mc, nc, pc;
-                closest_index(&cin->grid, x, y, z, &mc, &nc, &pc);
-
-                SETVALUE(simdata->c, m, n, p, GETVALUE(cin, mc, nc, pc));
-                SETVALUE(simdata->rho, m, n, p, GETVALUE(rhoin, mc, nc, pc));
+                double c_approx = trilinear_interpolate(cin, x, y, z);
+                double rho_approx = trilinear_interpolate(rhoin, x, y, z);
+                SETVALUE(simdata->c, m, n, p, c_approx);
+                SETVALUE(simdata->rho, m, n, p, rho_approx);
 
                 x += dxd2;
                 y += dxd2;
                 z += dxd2;
 
-                closest_index(&rhoin->grid, x, y, z, &mc, &nc, &pc);
-                SETVALUE(simdata->rhohalf, m, n, p, GETVALUE(rhoin, mc, nc, pc));
+                double rhohalf_approx = trilinear_interpolate(rhoin, x, y, z);
+                SETVALUE(simdata->rhohalf, m, n, p, rhohalf_approx);
             }
         }
     }
