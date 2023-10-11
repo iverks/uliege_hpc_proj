@@ -45,7 +45,7 @@
     ((size_t)(grid).numnodesx * (grid).numnodesy * (grid).numnodesz)
 
 #define INDEX3D(grid, m, n, p) \
-    ((size_t)grid.numnodesy * grid.numnodesx * (p) + grid.numnodesx * (n) + (m))
+    ((size_t)(p) + grid.numnodesz * (n) + grid.numnodesz * grid.numnodesy * (m))
 
 #define GETVALUE(dat, m, n, p) ((dat)->vals[INDEX3D((dat)->grid, m, n, p)])
 #define SETVALUE(dat, m, n, p, val) \
