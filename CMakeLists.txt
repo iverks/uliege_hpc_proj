@@ -5,6 +5,8 @@ set(PROJECT_NAME fdtd)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(MPI REQUIRED)
+
 project(${PROJECT_NAME})
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -O3 -Wall -Wextra")
 
@@ -13,8 +15,13 @@ set(INCLUDE_DIRS ${INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/)
 
 # Assign the include directories
 include_directories(${INCLUDE_DIRS})
+# MPI
+include_directories(SYSTEM ${MPI_INCLUDE_PATH})
 
 # Create the executable
 set(SOURCE_FILES fdtd.c)
 add_executable(fdtd ${SOURCE_FILES})
 target_link_libraries(fdtd m)
+
+# MPI
+target_link_libraries(fdtd ${MPI_C_LIBRARIES})
