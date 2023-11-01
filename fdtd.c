@@ -1,9 +1,11 @@
 #include "fdtd.h"
 
 #include <math.h>
+#include <mpi.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <assert.h>
 
 int main(int argc, const char* argv[]) {
     if (argc < 2) {
@@ -11,14 +13,41 @@ int main(int argc, const char* argv[]) {
         exit(1);
     }
 
+    MPI_Init(NULL, NULL);
+
+    int num_processes;
+    MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
+    assert(num_processes == NUM_NODES);
+
+    // We want 3x3x3 processes
+    int test_num_nodes = 1;
+    for (int i = 0; i < NUM_DIMS; i++) {
+        test_num_nodes *= NUM_NODES_PER_DIM;
+    }
+    assert(NUM_NODES == test_num_nodes);
+    int dims[NUM_DIMS] = {NUM_NODES_PER_DIM, NUM_NODES_PER_DIM, NUM_NODES_PER_DIM};
+    int periods[NUM_DIMS] = {0, 0, 0};
+
+    MPI_Comm cart_comm;
+    MPI_Cart_create(MPI_COMM_WORLD, NUM_DIMS, dims, periods, 0, &cart_comm);
+
+    int cart_rank;
+    int coords[3];
+
+    MPI_Comm_rank(cart_comm, &cart_rank);
+    MPI_Cart_coords(cart_comm, cart_rank, NUM_DIMS, coords);
+
     simulation_data_t simdata;
-    init_simulation(&simdata, argv[1]);
+    init_simulation(&simdata, argv[1], coords);
+
+    MPI_Request* n_reqs, s_reqs, e_reqs, w_reqs, i_reqs, o_reqs;
 
     int numtimesteps = floor(simdata.params.maxt / simdata.params.dt);
 
     double start = GET_TIME();
     for (int tstep = 0; tstep <= numtimesteps; tstep++) {
         apply_source(&simdata, tstep);
+
 
         if (simdata.params.outrate > 0 && (tstep % simdata.params.outrate) == 0) {
             for (int i = 0; i < simdata.params.numoutputs; i++) {
@@ -65,6 +94,7 @@ int main(int argc, const char* argv[]) {
 
         update_pressure(&simdata);
         update_velocities(&simdata);
+
         swap_timesteps(&simdata);
     }
 
@@ -77,6 +107,7 @@ int main(int argc, const char* argv[]) {
            updatespers);
 
     finalize_simulation(&simdata);
+    MPI_Finalize();
 
     return 0;
 }
@@ -787,9 +818,9 @@ int interpolate_inputmaps(simulation_data_t* simdata, grid_t* simgrid,
     for (int m = 0; m < simgrid->numnodesx; m++) {
         for (int n = 0; n < simgrid->numnodesy; n++) {
             for (int p = 0; p < simgrid->numnodesz; p++) {
-                double x = m * dx;
-                double y = n * dx;
-                double z = p * dx;
+                double x = simgrid->xmin + m * dx;
+                double y = simgrid->ymin + n * dx;
+                double z = simgrid->zmin + p * dx;
 
                 double c_approx = trilinear_interpolate(cin, x, y, z);
                 double rho_approx = trilinear_interpolate(rhoin, x, y, z);
@@ -815,6 +846,16 @@ void apply_source(simulation_data_t* simdata, int step) {
     double posx = source->posx;
     double posy = source->posy;
     double posz = source->posz;
+
+    if (posx < simdata.xmin 
+        || posx > simdata.xmax 
+        || posy < simdata.ymin 
+        || posy > simdata.ymax 
+        || posz < simdata.zmin 
+        || posz > simdata.zmax) {
+        // Nothing to do
+        return
+    }
 
     double t = step * simdata->params.dt;
 
@@ -899,7 +940,10 @@ void update_velocities(simulation_data_t* simdata) {
     }
 }
 
-void init_simulation(simulation_data_t* simdata, const char* params_filename) {
+void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[]) {
+    int x_cart = coords[0];
+    int y_cart = coords[1];
+    int z_cart = coords[2];
     if (read_paramfile(&simdata->params, params_filename) != 0) {
         printf("Failed to read parameters. Aborting...\n\n");
         exit(1);
@@ -945,19 +989,25 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename) {
     fclose(rhofp);
     fclose(cfp);
 
-    sim_grid.xmin = rhoin_grid.xmin;
-    sim_grid.xmax = rhoin_grid.xmax;
-    sim_grid.ymin = rhoin_grid.ymin;
-    sim_grid.ymax = rhoin_grid.ymax;
-    sim_grid.zmin = rhoin_grid.zmin;
-    sim_grid.zmax = rhoin_grid.zmax;
+    // Note: The way this is done makes rounding sometimes remove a single row from the simulation
+    // We deemed this a non-problem, since 1 row out of a 100 is very few.
+    int totalnumnodesx = MAX(floor((rhoin_grid.xmax - rhoin_grid.xmin) / (simdata->params.dx)), 1);
+    int totalnumnodesy = MAX(floor((rhoin_grid.ymax - rhoin_grid.ymin) / (simdata->params.dx)), 1);
+    int totalnumnodesz = MAX(floor((rhoin_grid.zmax - rhoin_grid.zmin) / (simdata->params.dx)), 1);
 
-    sim_grid.numnodesx =
-        MAX(floor((sim_grid.xmax - sim_grid.xmin) / simdata->params.dx), 1);
-    sim_grid.numnodesy =
-        MAX(floor((sim_grid.ymax - sim_grid.ymin) / simdata->params.dx), 1);
-    sim_grid.numnodesz =
-        MAX(floor((sim_grid.zmax - sim_grid.zmin) / simdata->params.dx), 1);
+    sim_grid.numnodesx = totalnumnodesx / NUM_NODES_PER_DIM + 2;
+    sim_grid.numnodesy = totalnumnodesy / NUM_NODES_PER_DIM + 2;
+    sim_grid.numnodesz = totalnumnodesz / NUM_NODES_PER_DIM + 2;
+
+    sim_grid.xmin = rhoin_grid.xmin + (sim_grid.numnodesx - 2) * x_cart * simdata->params.dx;
+    sim_grid.xmax = rhoin_grid.xmin + (sim_grid.numnodesx - 2) * (x_cart + 1) * simdata->params.dx;
+    sim_grid.ymin = rhoin_grid.ymin + (sim_grid.numnodesy - 2) * y_cart * simdata->params.dx;
+    sim_grid.ymax = rhoin_grid.ymin + (sim_grid.numnodesy - 2) * (y_cart + 1) * simdata->params.dx;
+    sim_grid.zmin = rhoin_grid.zmin + (sim_grid.numnodesz - 2) * z_cart * simdata->params.dx;
+    sim_grid.zmax = rhoin_grid.zmin + (sim_grid.numnodesz - 2) * (z_cart + 1) * simdata->params.dx;
+
+    printf("WALLAH, I have %d * %d * %d nodes\n", sim_grid.numnodesx, sim_grid.numnodesy, sim_grid.numnodesz);
+    printf("WALLAH, I go from %f to %f and from %f to %f\n", sim_grid.xmin, sim_grid.xmax, sim_grid.ymin, sim_grid.ymax);
 
     if (interpolate_inputmaps(simdata, &sim_grid, c_map, rho_map) != 0) {
         printf(

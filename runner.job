@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="My first job"
 #SBATCH --nodes=1-1
-#SBATCH --ntasks=1
+#SBATCH --ntasks=27
 #SBATCH --cpus-per-task=1
 #SBATCH --time=01:00
 #SBATCH --output=firstjob.out
@@ -14,5 +14,5 @@ module load OpenMPI
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 cd ./example_inputs/testing3d
-ls
+
 srun ../../fdtd ./param_3d.txt

@@ -1,6 +1,11 @@
 #pragma once
 
+#include <mpi.h>
 #include <stdio.h>
+
+#define NUM_NODES 27
+#define NUM_DIMS 3
+#define NUM_NODES_PER_DIM 3
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -438,7 +443,7 @@ void update_velocities(simulation_data_t* simdata);
  * used during the simulation
  * @param params_filename [IN] a path to a parameter file to read
  */
-void init_simulation(simulation_data_t* simdata, const char* params_filename);
+void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[]);
 
 /**
  * @brief Finalize the simulation by deallocating the data used for the
