@@ -1,6 +1,11 @@
 #pragma once
 
+#include <mpi.h>
 #include <stdio.h>
+
+#define NUM_NODES 27
+#define NUM_DIMS 3
+#define NUM_NODES_PER_DIM 3
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -169,57 +174,6 @@ typedef struct simulation_data {
 
 } simulation_data_t;
 
-const char* source_type_keywords[] = {[SINE] = "sine", [AUDIO] = "audio"};
-
-const char* output_type_keywords[] = {[CUTX] = "cut_x",
-                                      [CUTY] = "cut_y",
-                                      [CUTZ] = "cut_z",
-                                      [ALL] = "all",
-                                      [POINT] = "point"};
-
-const char* output_source_keywords[] = {[PRESSURE] = "pressure",
-                                        [VELOCITYX] = "velocity_x",
-                                        [VELOCITYY] = "velocity_y",
-                                        [VELOCITYZ] = "velocity_z"};
-
-/******************************************************************************
- * Utilities functions                                                        *
- ******************************************************************************/
-
-/**
- * @brief Copy the string passed in argument
- *
- * @param str [IN] the string to copy
- * @return char* a copy of the string passed in argument or NULL if memory
- * allocation for the copy failed
- */
-char* copy_string(char* str);
-
-/**
- * @brief Return the closest indexes in the grid for a given set of x, y and z
- *        coordinates.
- *
- * @param grid [IN] the computational grid
- * @param x [IN] the x coordinate
- * @param y [IN] the y coordinate
- * @param z [IN] the z coordinate
- * @param cx [OUT] the closest x index
- * @param cy [OUT] the closest y index
- * @param cz [OUT] the closest z index
- */
-void closest_index(grid_t* grid, double x, double y, double z, int* cx, int* cy,
-                   int* cz);
-
-/**
- * @brief Return an approximation of dat at position x, y, z using trilinear interpolation.
- *
- * @param dat [IN] the grid and the data
- * @param x [IN] the x coordinate
- * @param y [IN] the y coordinate
- * @param z [IN] the z coordinate
- */
-double trilinear_interpolate(data_t* dat, double x, double y, double z);
-
 /**
  * @brief Print information about the source object passed in argument
  *
@@ -233,86 +187,6 @@ void print_source(source_t* source);
  * @param output [IN] the output
  */
 void print_output(output_t* output);
-
-/******************************************************************************
- * Data functions                                                             *
- ******************************************************************************/
-
-/**
- * @brief Allocate a new data object and a 3D array to store values according to
- *        the grid provided in argument
- *
- * @param grid [IN] the grid describing the 3D array to allocate
- * @return data_t* return a new data object or NULL if allocation failed
- */
-data_t* allocate_data(grid_t* grid);
-
-/**
- * @brief Fills the 3D array of a data object with the value passed in argument
- *
- * @param data  [IN] the data object to fill
- * @param value [IN] the value used to fill the array
- */
-void fill_data(data_t* data, double value);
-
-/******************************************************************************
- * Data file functions                                                        *
- ******************************************************************************/
-
-/**
- * @brief create a new data file at the path provided in argument. A data file
- *        consists of a header describing the grid/domain followed by and one
- *        or multiple time step data. This function creates the file and writes
- *        the header.
- *
- * @param grid [IN] the grid for the data that will be written to the file
- * @param filename [IN] the path to the file to create
- * @return FILE* file handle to the newly created file or NULL if creation
- * failed
- */
-FILE* create_datafile(grid_t grid, char* filename);
-
-/**
- * @brief Open an existing data file for reading. This function opens the file
- *        and reads the header.
- *
- * @param grid     [OUT] upon return store the values read from the file header
- * @param numsteps [OUT] upon return, the number of time steps stored in the
- * file
- * @param filename  [IN] path of the file to open
- * @return FILE* file handle to the opened file or NULL if opening the file
- * failed
- */
-FILE* open_datafile(grid_t* grid, int* numsteps, char* filename);
-
-/**
- * @brief Read the data for one time step from a data file previously opened
- * with the open_datafile function and return the values for the time step in a
- * data object.
- *
- * @param fp [IN] file handle of the file opened with the open_datafile
- * function
- * @param grid [IN] grid of the data to read from the file. Should be identical
- * to the one returned by the open_datafile function
- * @param step [OUT] upon return, the time step index of the step
- * @param time [OUT] upon return, the time in the simulation of the step
- * @return data_t* a data object with the values of the time step read from the
- *                 file or NULL if read failed
- */
-data_t* read_data(FILE* fp, grid_t* grid, int* step, double* time);
-
-/**
- * @brief Write data of a time step to a data file previously opened with the
- *        create_datafile function.
- *
- * @param fp [IN] file handle of the file opened with the create_datafile
- * function
- * @param data [IN] the data to write
- * @param step [IN] the time step index of the step
- * @param time [IN] the time in the simulation of the step
- * @return int 0 if read was a success, returns 1 otherwise
- */
-int write_data(FILE* fp, data_t* data, int step, double time);
 
 /******************************************************************************
  * Output file functions                                                      *
@@ -332,7 +206,6 @@ int write_output(output_t* output, data_t* data, int step, double time);
 
 /**
  * @brief Open an output file for writing output data
- *
  * @param output [INOUT] an output object describing which part of the data
  * source needs to be written to the output file. Upon successful return the
  * output file handle member of the output object (fp) will be set to the opened
@@ -432,36 +305,8 @@ void update_pressure(simulation_data_t* simdata);
 void update_velocities(simulation_data_t* simdata);
 
 /**
- * @brief Initialize the simulation
- *
- * @param simdata [OUT] a simulation data that will be used to store the data
- * used during the simulation
- * @param params_filename [IN] a path to a parameter file to read
- */
-void init_simulation(simulation_data_t* simdata, const char* params_filename);
-
-/**
- * @brief Finalize the simulation by deallocating the data used for the
- * simulation
- *
- * @param simdata [INOUT] a simulation data object describing the simulation to
- * finalize
- */
-void finalize_simulation(simulation_data_t* simdata);
-
-/**
  * @brief Swap the time steps data, i.e., make the new time step the old one
  *
  * @param simdata [INOUT] a simulation data object describing the simulation
  */
 void swap_timesteps(simulation_data_t* simdata);
-
-/******************************************************************************
- * Student defined things                                                     *
- ******************************************************************************/
-
-typedef struct point {
-    double x;
-    double y;
-    double z;
-} point_t;

@@ -1,159 +1,27 @@
 #include "fdtd.h"
 
+#include <assert.h>
 #include <math.h>
+#include <mpi.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-int main(int argc, const char* argv[]) {
-    if (argc < 2) {
-        printf("\nUsage: ./fdtd <param_file>\n\n");
-        exit(1);
-    }
+#include "init.h"
+#include "utilities.h"
 
-    simulation_data_t simdata;
-    init_simulation(&simdata, argv[1]);
+const char* source_type_keywords[] = {[SINE] = "sine", [AUDIO] = "audio"};
 
-    int numtimesteps = floor(simdata.params.maxt / simdata.params.dt);
+const char* output_type_keywords[] = {[CUTX] = "cut_x",
+                                      [CUTY] = "cut_y",
+                                      [CUTZ] = "cut_z",
+                                      [ALL] = "all",
+                                      [POINT] = "point"};
 
-    double start = GET_TIME();
-    for (int tstep = 0; tstep <= numtimesteps; tstep++) {
-        apply_source(&simdata, tstep);
-
-        if (simdata.params.outrate > 0 && (tstep % simdata.params.outrate) == 0) {
-            for (int i = 0; i < simdata.params.numoutputs; i++) {
-                data_t* output_data = NULL;
-
-                switch (simdata.params.outputs[i].source) {
-                    case PRESSURE:
-                        output_data = simdata.pold;
-                        break;
-                    case VELOCITYX:
-                        output_data = simdata.vxold;
-                        break;
-                    case VELOCITYY:
-                        output_data = simdata.vyold;
-                        break;
-                    case VELOCITYZ:
-                        output_data = simdata.vzold;
-                        break;
-
-                    default:
-                        break;
-                }
-
-                double time = tstep * simdata.params.dt;
-                write_output(&simdata.params.outputs[i], output_data, tstep, time);
-            }
-        }
-
-        if (tstep > 0 && tstep % (numtimesteps / 10) == 0) {
-            printf("step %8d/%d", tstep, numtimesteps);
-
-            if (tstep != numtimesteps) {
-                double elapsed_sofar = GET_TIME() - start;
-                double timeperstep_sofar = elapsed_sofar / tstep;
-
-                double eta = (numtimesteps - tstep) * timeperstep_sofar;
-
-                printf(" (ETA: %8.3lf seconds)", eta);
-            }
-
-            printf("\n");
-            fflush(stdout);
-        }
-
-        update_pressure(&simdata);
-        update_velocities(&simdata);
-        swap_timesteps(&simdata);
-    }
-
-    double elapsed = GET_TIME() - start;
-    double numupdates =
-        (double)NUMNODESTOT(simdata.pold->grid) * (numtimesteps + 1);
-    double updatespers = numupdates / elapsed / 1e6;
-
-    printf("\nElapsed %.6lf seconds (%.3lf Mupdates/s)\n\n", elapsed,
-           updatespers);
-
-    finalize_simulation(&simdata);
-
-    return 0;
-}
-
-/******************************************************************************
- * Utilities functions                                                        *
- ******************************************************************************/
-
-char* copy_string(char* str) {
-    size_t len;
-    if (str == NULL || (len = strlen(str)) == 0) {
-        DEBUG_PRINT("NULL of zero length string passed as argument");
-        return NULL;
-    }
-
-    char* cpy;
-    if ((cpy = malloc((len + 1) * sizeof(char))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory");
-        return NULL;
-    }
-
-    return strcpy(cpy, str);
-}
-
-void closest_index(grid_t* grid, double x, double y, double z, int* cx, int* cy,
-                   int* cz) {
-    int m = (int)((x - grid->xmin) / (grid->xmax - grid->xmin) * grid->numnodesx);
-    int n = (int)((y - grid->ymin) / (grid->ymax - grid->ymin) * grid->numnodesy);
-    int p = (int)((z - grid->zmin) / (grid->zmax - grid->zmin) * grid->numnodesz);
-
-    *cx = (m < 0) ? 0 : (m > grid->numnodesx - 1) ? grid->numnodesx - 1
-                                                  : m;
-    *cy = (n < 0) ? 0 : (n > grid->numnodesy - 1) ? grid->numnodesy - 1
-                                                  : n;
-    *cz = (p < 0) ? 0 : (p > grid->numnodesz - 1) ? grid->numnodesz - 1
-                                                  : p;
-}
-
-double trilinear_interpolate(data_t* dat, double x, double y, double z) {
-    grid_t* grid = &dat->grid;
-    int lx = (int)floor((x - grid->xmin) / (grid->xmax - grid->xmin) * grid->numnodesx);
-    int ly = (int)floor((y - grid->ymin) / (grid->ymax - grid->ymin) * grid->numnodesy);
-    int lz = (int)floor((z - grid->zmin) / (grid->zmax - grid->zmin) * grid->numnodesz);
-
-    // The "bottom" corner must be a full point away from the end
-    lx = (lx < 0) ? 0 : lx;
-    lx = (lx > grid->numnodesx - 2) ? grid->numnodesx - 2 : lx;
-    ly = (ly < 0) ? 0 : ly;
-    ly = (ly > grid->numnodesy - 2) ? grid->numnodesy - 2 : ly;
-    lz = (lz < 0) ? 0 : lz;
-    lz = (lz > grid->numnodesz - 2) ? grid->numnodesz - 2 : lz;
-
-    // Relative distances from "origin" of the cube
-    double x_d = (x - (double)lx) / (grid->xmax - grid->xmin) * grid->numnodesx;
-    double y_d = (y - (double)ly) / (grid->ymax - grid->ymin) * grid->numnodesy;
-    double z_d = (z - (double)lz) / (grid->zmax - grid->zmin) * grid->numnodesz;
-
-    double c_000 = GETVALUE(dat, lx, ly, lz);
-    double c_100 = GETVALUE(dat, lx + 1, ly, lz);
-    double c_001 = GETVALUE(dat, lx, ly, lz + 1);
-    double c_101 = GETVALUE(dat, lx + 1, ly, lz + 1);
-    double c_010 = GETVALUE(dat, lx, ly + 1, lz);
-    double c_110 = GETVALUE(dat, lx + 1, ly + 1, lz);
-    double c_011 = GETVALUE(dat, lx, ly + 1, lz + 1);
-    double c_111 = GETVALUE(dat, lx + 1, ly + 1, lz + 1);
-
-    double c_00 = c_000 * (1 - x_d) + c_100 * x_d;
-    double c_01 = c_001 * (1 - x_d) + c_101 * x_d;
-    double c_10 = c_010 * (1 - x_d) + c_110 * x_d;
-    double c_11 = c_011 * (1 - x_d) + c_111 * x_d;
-
-    double c_0 = c_00 * (1 - y_d) + c_10 * y_d;
-    double c_1 = c_01 * (1 - y_d) + c_11 * y_d;
-
-    double c = c_0 * (1 - z_d) + c_1 * z_d;
-    return c;
-}
+const char* output_source_keywords[] = {[PRESSURE] = "pressure",
+                                        [VELOCITYX] = "velocity_x",
+                                        [VELOCITYY] = "velocity_y",
+                                        [VELOCITYZ] = "velocity_z"};
 
 void print_source(source_t* source) {
     printf(" Source infos:\n\n");
@@ -217,195 +85,6 @@ void print_output(output_t* output) {
     }
 
     printf(" to file %s\n", output->filename);
-}
-
-/******************************************************************************
- * Data functions                                                             *
- ******************************************************************************/
-
-data_t* allocate_data(grid_t* grid) {
-    size_t numnodes = NUMNODESTOT(*grid);
-    if (numnodes <= 0) {
-        DEBUG_PRINTF("Invalid number of nodes (%lu)", numnodes);
-        return NULL;
-    }
-
-    data_t* data;
-    if ((data = malloc(sizeof(data_t))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory");
-        free(data);
-        return NULL;
-    }
-
-    if ((data->vals = malloc(numnodes * sizeof(double))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory");
-        free(data->vals);
-        free(data);
-        return NULL;
-    }
-
-    data->grid = *grid;
-
-    return data;
-}
-
-void fill_data(data_t* data, double value) {
-    if (data == NULL) {
-        DEBUG_PRINT("Invalid NULL data");
-        return;
-    }
-
-    for (int m = 0; m < NUMNODESX(data); m++) {
-        for (int n = 0; n < NUMNODESY(data); n++) {
-            for (int p = 0; p < NUMNODESZ(data); p++) {
-                SETVALUE(data, m, n, p, value);
-            }
-        }
-    }
-}
-
-/******************************************************************************
- * Data file functions                                                        *
- ******************************************************************************/
-
-FILE* create_datafile(grid_t grid, char* filename) {
-    if (filename == NULL) {
-        DEBUG_PRINT("Invalid NULL filename");
-        return NULL;
-    }
-
-    FILE* fp;
-    if ((fp = fopen(filename, "wb")) == NULL) {
-        DEBUG_PRINTF("Failed to open file '%s'", filename);
-        return NULL;
-    }
-
-    if (fwrite(&grid.numnodesx, sizeof(int), 1, fp) != 1 ||
-        fwrite(&grid.numnodesy, sizeof(int), 1, fp) != 1 ||
-        fwrite(&grid.numnodesz, sizeof(int), 1, fp) != 1 ||
-        fwrite(&grid.xmin, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.xmax, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.ymin, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.ymax, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.zmin, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.zmax, sizeof(double), 1, fp) != 1) {
-        DEBUG_PRINTF("Failed to write header of file '%s'", filename);
-        fclose(fp);
-        return NULL;
-    }
-
-    return fp;
-}
-
-FILE* open_datafile(grid_t* grid, int* numsteps, char* filename) {
-    if (grid == NULL || filename == NULL) {
-        DEBUG_PRINT("Invalid NULL grid or filename");
-        return NULL;
-    }
-
-    FILE* fp;
-    if ((fp = fopen(filename, "rb")) == NULL) {
-        DEBUG_PRINTF("Failed to open file '%s'", filename);
-        return NULL;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    size_t file_size = ftell(fp);
-    rewind(fp);
-
-    if (fread(&grid->numnodesx, sizeof(int), 1, fp) != 1 ||
-        fread(&grid->numnodesy, sizeof(int), 1, fp) != 1 ||
-        fread(&grid->numnodesz, sizeof(int), 1, fp) != 1 ||
-        fread(&grid->xmin, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->xmax, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->ymin, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->ymax, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->zmin, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->zmax, sizeof(double), 1, fp) != 1) {
-        DEBUG_PRINTF("Failed to read header of file '%s'", filename);
-        fclose(fp);
-        return NULL;
-    }
-
-    size_t numnodestot =
-        (size_t)grid->numnodesx * grid->numnodesy * grid->numnodesz;
-
-    size_t values_size = numnodestot * sizeof(double);
-    size_t stepindex_size = sizeof(int);
-    size_t timestamp_size = sizeof(double);
-    size_t header_size = 6 * sizeof(double) + 3 * sizeof(int);
-
-    size_t onetimestep_size = values_size + stepindex_size + timestamp_size;
-    size_t alltimestep_size = file_size - header_size;
-
-    if (alltimestep_size % onetimestep_size != 0) {
-        DEBUG_PRINTF("Data size is inconsistent with number of nodes (%lu, %lu)",
-                     alltimestep_size, onetimestep_size);
-
-        fclose(fp);
-        return NULL;
-    }
-
-    if (numsteps != NULL) {
-        *numsteps = (alltimestep_size / onetimestep_size);
-    }
-
-    return fp;
-}
-
-data_t* read_data(FILE* fp, grid_t* grid, int* step, double* time) {
-    if (fp == NULL) {
-        DEBUG_PRINT("Invalid NULL file pointer");
-        return NULL;
-    }
-
-    double ltime;
-    int lstep;
-
-    size_t numnodes = NUMNODESTOT(*grid);
-
-    data_t* data;
-    if ((data = allocate_data(grid)) == NULL) {
-        DEBUG_PRINT("Failed to allocate data");
-        return NULL;
-    }
-
-    if (fread(&lstep, sizeof(int), 1, fp) != 1 ||
-        fread(&ltime, sizeof(double), 1, fp) != 1 ||
-        fread(data->vals, sizeof(double), numnodes, fp) != numnodes) {
-        DEBUG_PRINT("Failed to read data");
-        free(data);
-        return NULL;
-    }
-
-    if (step != NULL)
-        *step = lstep;
-    if (time != NULL)
-        *time = ltime;
-
-    return data;
-}
-
-int write_data(FILE* fp, data_t* data, int step, double time) {
-    if (fp == NULL || data == NULL || data->vals == NULL) {
-        DEBUG_PRINT("Invalid NULL data or file pointer");
-        return 1;
-    }
-
-    size_t numnodes = NUMNODESTOT(data->grid);
-    if (numnodes <= 0) {
-        DEBUG_PRINTF("Invalid number of nodes (%lu)", numnodes);
-        return 1;
-    }
-
-    if (fwrite(&step, sizeof(int), 1, fp) != 1 ||
-        fwrite(&time, sizeof(double), 1, fp) != 1 ||
-        fwrite(data->vals, sizeof(double), numnodes, fp) != numnodes) {
-        DEBUG_PRINT("Failed to write data");
-        return 1;
-    }
-
-    return 0;
 }
 
 /******************************************************************************
@@ -787,9 +466,9 @@ int interpolate_inputmaps(simulation_data_t* simdata, grid_t* simgrid,
     for (int m = 0; m < simgrid->numnodesx; m++) {
         for (int n = 0; n < simgrid->numnodesy; n++) {
             for (int p = 0; p < simgrid->numnodesz; p++) {
-                double x = m * dx;
-                double y = n * dx;
-                double z = p * dx;
+                double x = simgrid->xmin + m * dx;
+                double y = simgrid->ymin + n * dx;
+                double z = simgrid->zmin + p * dx;
 
                 double c_approx = trilinear_interpolate(cin, x, y, z);
                 double rho_approx = trilinear_interpolate(rhoin, x, y, z);
@@ -815,6 +494,18 @@ void apply_source(simulation_data_t* simdata, int step) {
     double posx = source->posx;
     double posy = source->posy;
     double posz = source->posz;
+
+    double xmin = simdata->pold->grid.xmin;
+    double xmax = simdata->pold->grid.xmax;
+    double ymin = simdata->pold->grid.ymin;
+    double ymax = simdata->pold->grid.ymax;
+    double zmin = simdata->pold->grid.zmin;
+    double zmax = simdata->pold->grid.zmax;
+
+    if (posx < xmin || posx > xmax || posy < ymin || posy > ymax || posz < zmin || posz > zmax) {
+        // Nothing to do
+        return;
+    }
 
     double t = step * simdata->params.dt;
 
@@ -899,201 +590,6 @@ void update_velocities(simulation_data_t* simdata) {
     }
 }
 
-void init_simulation(simulation_data_t* simdata, const char* params_filename) {
-    if (read_paramfile(&simdata->params, params_filename) != 0) {
-        printf("Failed to read parameters. Aborting...\n\n");
-        exit(1);
-    }
-
-    grid_t rhoin_grid;
-    grid_t cin_grid;
-    grid_t sim_grid;
-
-    int rho_numstep;
-    int c_numstep;
-
-    FILE* rhofp =
-        open_datafile(&rhoin_grid, &rho_numstep, simdata->params.rhoin_filename);
-    FILE* cfp =
-        open_datafile(&cin_grid, &c_numstep, simdata->params.cin_filename);
-
-    if (rhofp == NULL || rho_numstep <= 0) {
-        printf("Failed to open the density map file. Aborting...\n\n");
-        exit(1);
-    }
-
-    if (cfp == NULL || c_numstep <= 0) {
-        printf("Failed to open the speed map file. Aborting...\n\n");
-        exit(1);
-    }
-
-    if (rhoin_grid.xmin != cin_grid.xmin || rhoin_grid.ymin != cin_grid.ymin ||
-        rhoin_grid.zmin != cin_grid.zmin || rhoin_grid.xmax != cin_grid.xmax ||
-        rhoin_grid.ymax != cin_grid.ymax || rhoin_grid.zmax != cin_grid.zmax) {
-        printf("Grids for the density and speed are not the same. Aborting...\n\n");
-        exit(1);
-    }
-
-    data_t* rho_map = read_data(rhofp, &rhoin_grid, NULL, NULL);
-    data_t* c_map = read_data(cfp, &cin_grid, NULL, NULL);
-
-    if (rho_map == NULL || c_map == NULL) {
-        printf("Failed to read data from input maps. Aborting...\n\n");
-        exit(1);
-    }
-
-    fclose(rhofp);
-    fclose(cfp);
-
-    sim_grid.xmin = rhoin_grid.xmin;
-    sim_grid.xmax = rhoin_grid.xmax;
-    sim_grid.ymin = rhoin_grid.ymin;
-    sim_grid.ymax = rhoin_grid.ymax;
-    sim_grid.zmin = rhoin_grid.zmin;
-    sim_grid.zmax = rhoin_grid.zmax;
-
-    sim_grid.numnodesx =
-        MAX(floor((sim_grid.xmax - sim_grid.xmin) / simdata->params.dx), 1);
-    sim_grid.numnodesy =
-        MAX(floor((sim_grid.ymax - sim_grid.ymin) / simdata->params.dx), 1);
-    sim_grid.numnodesz =
-        MAX(floor((sim_grid.zmax - sim_grid.zmin) / simdata->params.dx), 1);
-
-    if (interpolate_inputmaps(simdata, &sim_grid, c_map, rho_map) != 0) {
-        printf(
-            "Error while converting input map to simulation grid. Aborting...\n\n");
-        exit(1);
-    }
-
-    if (simdata->params.outrate > 0 && simdata->params.outputs != NULL) {
-        for (int i = 0; i < simdata->params.numoutputs; i++) {
-            char* outfilei = simdata->params.outputs[i].filename;
-
-            for (int j = 0; j < i; j++) {
-                char* outfilej = simdata->params.outputs[j].filename;
-
-                if (strcmp(outfilei, outfilej) == 0) {
-                    printf("Duplicate output file: '%s'. Aborting...\n\n", outfilei);
-                    exit(1);
-                }
-            }
-        }
-
-        for (int i = 0; i < simdata->params.numoutputs; i++) {
-            output_t* output = &simdata->params.outputs[i];
-
-            if (open_outputfile(output, &sim_grid) != 0) {
-                printf("Failed to open output file: '%s'. Aborting...\n\n",
-                       output->filename);
-                exit(1);
-            }
-        }
-    }
-
-    if ((simdata->pold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->pnew = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vxold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vxnew = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vyold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vynew = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vzold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vznew = allocate_data(&sim_grid)) == NULL) {
-        printf("Failed to allocate memory. Aborting...\n\n");
-        exit(1);
-    }
-
-    fill_data(simdata->pold, 0.0);
-    fill_data(simdata->pnew, 0.0);
-
-    fill_data(simdata->vynew, 0.0);
-    fill_data(simdata->vxold, 0.0);
-    fill_data(simdata->vynew, 0.0);
-    fill_data(simdata->vyold, 0.0);
-    fill_data(simdata->vznew, 0.0);
-    fill_data(simdata->vzold, 0.0);
-
-    printf("\n");
-    printf(" Grid spacing: %g\n", simdata->params.dx);
-    printf("  Grid size X: %d\n", sim_grid.numnodesx);
-    printf("  Grid size Y: %d\n", sim_grid.numnodesy);
-    printf("  Grid size Z: %d\n", sim_grid.numnodesz);
-    printf("    Time step: %g\n", simdata->params.dt);
-    printf(" Maximum time: %g\n\n", simdata->params.maxt);
-
-    if (simdata->params.outrate > 0 && simdata->params.outputs) {
-        int outsampling =
-            (int)(1.0 / (simdata->params.outrate * simdata->params.dt));
-
-        printf("     Output rate: every %d step(s)\n", simdata->params.outrate);
-        printf(" Output sampling: %d Hz\n\n", outsampling);
-        printf(" Output files:\n\n");
-
-        for (int i = 0; i < simdata->params.numoutputs; i++) {
-            print_output(&simdata->params.outputs[i]);
-        }
-
-        printf("\n");
-
-    } else if (simdata->params.outrate < 0) {
-        printf("  Output is disabled (output rate set to 0)\n\n");
-
-    } else {
-        printf("  Output is disabled (not output specified)\n\n");
-    }
-
-    print_source(&simdata->params.source);
-
-    fflush(stdout);
-
-    free(rho_map->vals);
-    free(rho_map);
-    free(c_map->vals);
-    free(c_map);
-}
-
-void finalize_simulation(simulation_data_t* simdata) {
-    if (simdata->params.outputs != NULL) {
-        for (int i = 0; i < simdata->params.numoutputs; i++) {
-            free(simdata->params.outputs[i].filename);
-
-            if (simdata->params.outrate > 0) {
-                fclose(simdata->params.outputs[i].fp);
-            }
-        }
-
-        free(simdata->params.outputs);
-    }
-
-    free(simdata->params.source.data);
-    free(simdata->params.cin_filename);
-    free(simdata->params.rhoin_filename);
-
-    free(simdata->rho->vals);
-    free(simdata->rho);
-    free(simdata->rhohalf->vals);
-    free(simdata->rhohalf);
-    free(simdata->c->vals);
-    free(simdata->c);
-
-    free(simdata->pold->vals);
-    free(simdata->pold);
-    free(simdata->pnew->vals);
-    free(simdata->pnew);
-
-    free(simdata->vxold->vals);
-    free(simdata->vxold);
-    free(simdata->vxnew->vals);
-    free(simdata->vxnew);
-    free(simdata->vyold->vals);
-    free(simdata->vyold);
-    free(simdata->vynew->vals);
-    free(simdata->vynew);
-    free(simdata->vzold->vals);
-    free(simdata->vzold);
-    free(simdata->vznew->vals);
-    free(simdata->vznew);
-}
-
 void swap_timesteps(simulation_data_t* simdata) {
     data_t* tmpp = simdata->pold;
     data_t* tmpvx = simdata->vxold;
@@ -1108,4 +604,108 @@ void swap_timesteps(simulation_data_t* simdata) {
     simdata->vynew = tmpvy;
     simdata->vzold = simdata->vznew;
     simdata->vznew = tmpvz;
+}
+
+int main(int argc, const char* argv[]) {
+    if (argc < 2) {
+        printf("\nUsage: ./fdtd <param_file>\n\n");
+        exit(1);
+    }
+
+    MPI_Init(NULL, NULL);
+
+    int num_processes;
+    MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
+    assert(num_processes == NUM_NODES);
+
+    // We want 3x3x3 processes
+    int test_num_nodes = 1;
+    for (int i = 0; i < NUM_DIMS; i++) {
+        test_num_nodes *= NUM_NODES_PER_DIM;
+    }
+    assert(NUM_NODES == test_num_nodes);
+    int dims[NUM_DIMS] = {NUM_NODES_PER_DIM, NUM_NODES_PER_DIM, NUM_NODES_PER_DIM};
+    int periods[NUM_DIMS] = {0, 0, 0};
+
+    MPI_Comm cart_comm;
+    MPI_Cart_create(MPI_COMM_WORLD, NUM_DIMS, dims, periods, 0, &cart_comm);
+
+    int cart_rank;
+    int coords[3];
+
+    MPI_Comm_rank(cart_comm, &cart_rank);
+    MPI_Cart_coords(cart_comm, cart_rank, NUM_DIMS, coords);
+
+    simulation_data_t simdata;
+    init_simulation(&simdata, argv[1], coords);
+
+    // MPI_Request *n_reqs, s_reqs, e_reqs, w_reqs, i_reqs, o_reqs;
+
+    int numtimesteps = floor(simdata.params.maxt / simdata.params.dt);
+
+    double start = GET_TIME();
+    for (int tstep = 0; tstep <= numtimesteps; tstep++) {
+        apply_source(&simdata, tstep);
+
+        if (simdata.params.outrate > 0 && (tstep % simdata.params.outrate) == 0) {
+            for (int i = 0; i < simdata.params.numoutputs; i++) {
+                data_t* output_data = NULL;
+
+                switch (simdata.params.outputs[i].source) {
+                    case PRESSURE:
+                        output_data = simdata.pold;
+                        break;
+                    case VELOCITYX:
+                        output_data = simdata.vxold;
+                        break;
+                    case VELOCITYY:
+                        output_data = simdata.vyold;
+                        break;
+                    case VELOCITYZ:
+                        output_data = simdata.vzold;
+                        break;
+
+                    default:
+                        break;
+                }
+
+                double time = tstep * simdata.params.dt;
+                write_output(&simdata.params.outputs[i], output_data, tstep, time);
+            }
+        }
+
+        if (tstep > 0 && tstep % (numtimesteps / 10) == 0) {
+            printf("step %8d/%d", tstep, numtimesteps);
+
+            if (tstep != numtimesteps) {
+                double elapsed_sofar = GET_TIME() - start;
+                double timeperstep_sofar = elapsed_sofar / tstep;
+
+                double eta = (numtimesteps - tstep) * timeperstep_sofar;
+
+                printf(" (ETA: %8.3lf seconds)", eta);
+            }
+
+            printf("\n");
+            fflush(stdout);
+        }
+
+        update_pressure(&simdata);
+        update_velocities(&simdata);
+
+        swap_timesteps(&simdata);
+    }
+
+    double elapsed = GET_TIME() - start;
+    double numupdates =
+        (double)NUMNODESTOT(simdata.pold->grid) * (numtimesteps + 1);
+    double updatespers = numupdates / elapsed / 1e6;
+
+    printf("\nElapsed %.6lf seconds (%.3lf Mupdates/s)\n\n", elapsed,
+           updatespers);
+
+    finalize_simulation(&simdata);
+    MPI_Finalize();
+
+    return 0;
 }
