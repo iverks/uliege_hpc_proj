@@ -250,16 +250,16 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     int totalnumnodesy = MAX(floor((rhoin_grid.ymax - rhoin_grid.ymin) / (simdata->params.dx)), 1);
     int totalnumnodesz = MAX(floor((rhoin_grid.zmax - rhoin_grid.zmin) / (simdata->params.dx)), 1);
 
-    sim_grid.numnodesx = totalnumnodesx / NUM_NODES_PER_DIM + 2;
-    sim_grid.numnodesy = totalnumnodesy / NUM_NODES_PER_DIM + 2;
-    sim_grid.numnodesz = totalnumnodesz / NUM_NODES_PER_DIM + 2;
+    sim_grid.numnodesx = totalnumnodesx / NUM_NODES_PER_DIM;
+    sim_grid.numnodesy = totalnumnodesy / NUM_NODES_PER_DIM;
+    sim_grid.numnodesz = totalnumnodesz / NUM_NODES_PER_DIM;
 
-    sim_grid.xmin = rhoin_grid.xmin + (sim_grid.numnodesx - 2) * x_cart * simdata->params.dx;
-    sim_grid.xmax = rhoin_grid.xmin + (sim_grid.numnodesx - 2) * (x_cart + 1) * simdata->params.dx;
-    sim_grid.ymin = rhoin_grid.ymin + (sim_grid.numnodesy - 2) * y_cart * simdata->params.dx;
-    sim_grid.ymax = rhoin_grid.ymin + (sim_grid.numnodesy - 2) * (y_cart + 1) * simdata->params.dx;
-    sim_grid.zmin = rhoin_grid.zmin + (sim_grid.numnodesz - 2) * z_cart * simdata->params.dx;
-    sim_grid.zmax = rhoin_grid.zmin + (sim_grid.numnodesz - 2) * (z_cart + 1) * simdata->params.dx;
+    sim_grid.xmin = rhoin_grid.xmin + (sim_grid.numnodesx) * x_cart * simdata->params.dx;
+    sim_grid.xmax = rhoin_grid.xmin + (sim_grid.numnodesx) * (x_cart + 1) * simdata->params.dx;
+    sim_grid.ymin = rhoin_grid.ymin + (sim_grid.numnodesy) * y_cart * simdata->params.dx;
+    sim_grid.ymax = rhoin_grid.ymin + (sim_grid.numnodesy) * (y_cart + 1) * simdata->params.dx;
+    sim_grid.zmin = rhoin_grid.zmin + (sim_grid.numnodesz) * z_cart * simdata->params.dx;
+    sim_grid.zmax = rhoin_grid.zmin + (sim_grid.numnodesz) * (z_cart + 1) * simdata->params.dx;
 
     printf("WALLAH, I have %d * %d * %d nodes\n", sim_grid.numnodesx, sim_grid.numnodesy, sim_grid.numnodesz);
     printf("WALLAH, I go from %f to %f and from %f to %f\n", sim_grid.xmin, sim_grid.xmax, sim_grid.ymin, sim_grid.ymax);
