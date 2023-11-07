@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "fdtd.h"
+#include "utilities.h"
 
 /******************************************************************************
  * Data functions                                                             *
@@ -19,19 +20,59 @@ data_t* allocate_data(grid_t* grid) {
 
     data_t* data;
     if ((data = malloc(sizeof(data_t))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory");
+        DEBUG_PRINT("Failed to allocate memory for data struct");
         free(data);
         return NULL;
     }
 
     if ((data->vals = malloc(numnodes * sizeof(double))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory");
+        DEBUG_PRINT("Failed to allocate memory for data vals");
         free(data->vals);
         free(data);
         return NULL;
     }
 
     data->grid = *grid;
+
+    // Buffer code
+    int numbuffers = BUFFER_DIR_TYPE_END * BUFFER_TYPE_TYPE_END;
+    if ((data->buffers = malloc(numbuffers * sizeof(double*))) == NULL) {
+        DEBUG_PRINT("Failed to allocate memory for buffer pointers");
+        free(data->buffers);
+        free(data->vals);
+        free(data);
+        return NULL;
+    }
+
+    int success = 1;
+    for (buffer_direction_t b_dir = 0; b_dir < BUFFER_DIR_TYPE_END; b_dir++) {
+        for (buffer_type_t b_type = 0; b_type < BUFFER_TYPE_TYPE_END; b_type++) {
+            int numnodesx = data->grid.numnodesx;
+            if (b_dir == X_MAX || b_dir == X_MIN) {
+                numnodesx = data->grid.numnodesy;
+            }
+            int numnodesy = data->grid.numnodesz;
+            if (b_dir == Z_MAX || b_dir == Z_MIN) {
+                numnodesy = data->grid.numnodesy;
+            }
+            int buffer_idx = b_dir + BUFFER_DIR_TYPE_END * b_type;
+            int numnodestot = numnodesx * numnodesy;
+            if ((data->buffers[buffer_idx] = malloc(numnodestot)) == NULL) {
+                success = 0;
+            }
+        }
+    }
+
+    if (!success) {
+        for (int buffer_idx = 0; buffer_idx < numbuffers; buffer_idx++) {
+            free(data->buffers[buffer_idx]);
+        }
+        DEBUG_PRINT("Failed to allocate memory for buffers");
+        free(data->buffers);
+        free(data->vals);
+        free(data);
+        return NULL;
+    }
 
     return data;
 }
@@ -49,6 +90,8 @@ void fill_data(data_t* data, double value) {
             }
         }
     }
+
+    fill_buffers(data, value);
 }
 
 /******************************************************************************
@@ -260,9 +303,6 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     sim_grid.ymax = rhoin_grid.ymin + (sim_grid.numnodesy) * (y_cart + 1) * simdata->params.dx;
     sim_grid.zmin = rhoin_grid.zmin + (sim_grid.numnodesz) * z_cart * simdata->params.dx;
     sim_grid.zmax = rhoin_grid.zmin + (sim_grid.numnodesz) * (z_cart + 1) * simdata->params.dx;
-
-    printf("WALLAH, I have %d * %d * %d nodes\n", sim_grid.numnodesx, sim_grid.numnodesy, sim_grid.numnodesz);
-    printf("WALLAH, I go from %f to %f and from %f to %f\n", sim_grid.xmin, sim_grid.xmax, sim_grid.ymin, sim_grid.ymax);
 
     if (interpolate_inputmaps(simdata, &sim_grid, c_map, rho_map) != 0) {
         printf(

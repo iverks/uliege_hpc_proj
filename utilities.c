@@ -79,3 +79,37 @@ double trilinear_interpolate(data_t* dat, double x, double y, double z) {
     double c = c_0 * (1 - z_d) + c_1 * z_d;
     return c;
 }
+
+/******************************************************************************
+ * Buffer utilities                                                           *
+ ******************************************************************************/
+
+double* buffer_index(data_t* dat, int x, int y, buffer_direction_t b_dir, buffer_type_t b_type) {
+    int indexof_buffer = b_dir + BUFFER_DIR_TYPE_END * b_type;
+    double* buffer = dat->buffers[indexof_buffer];
+    int x_dim_size = dat->grid.numnodesx;
+    if (b_dir == X_MAX || b_dir == X_MIN) {
+        x_dim_size = dat->grid.numnodesy;
+    }
+    return &buffer[x + y * x_dim_size];
+}
+
+void fill_buffers(data_t* dat, double val) {
+    for (buffer_direction_t b_dir = 0; b_dir < BUFFER_DIR_TYPE_END; b_dir++) {
+        for (buffer_type_t b_type = 0; b_type < BUFFER_TYPE_TYPE_END; b_type++) {
+            int numnodesx = dat->grid.numnodesx;
+            if (b_dir == X_MAX || b_dir == X_MIN) {
+                numnodesx = dat->grid.numnodesy;
+            }
+            int numnodesy = dat->grid.numnodesz;
+            if (b_dir == Z_MAX || b_dir == Z_MIN) {
+                numnodesy = dat->grid.numnodesy;
+            }
+            for (int y = 0; y < numnodesy; y++) {
+                for (int x = 0; x < numnodesx; x++) {
+                    *buffer_index(dat, x, y, b_dir, b_type) = val;
+                }
+            }
+        }
+    }
+}

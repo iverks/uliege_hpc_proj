@@ -94,6 +94,22 @@ typedef enum output_type {
 
 } output_type_t;
 
+typedef enum buffer_direction {
+    X_MIN = 0,
+    Y_MIN,
+    Z_MIN,
+    X_MAX,
+    Y_MAX,
+    Z_MAX,
+    BUFFER_DIR_TYPE_END
+} buffer_direction_t;
+
+typedef enum buffer_type {
+    SND = 0,
+    RCV,
+    BUFFER_TYPE_TYPE_END
+} buffer_type_t;
+
 typedef struct grid {
     int numnodesx;
     int numnodesy;
@@ -159,7 +175,8 @@ typedef struct data {
     grid_t grid;
 
     double* vals;
-
+    // Buffers for sending and recieving each direction
+    double** buffers;
 } data_t;
 
 typedef struct simulation_data {
