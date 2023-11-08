@@ -175,9 +175,13 @@ typedef struct data {
     grid_t grid;
 
     double* vals;
-    // Buffers for sending and recieving each direction
-    double** buffers;
 } data_t;
+
+typedef struct buffer {
+    grid_t grid;
+
+    double** buffers;
+} buffer_t;
 
 typedef struct simulation_data {
     parameters_t params;
@@ -188,6 +192,11 @@ typedef struct simulation_data {
     data_t *vxold, *vxnew;
     data_t *vyold, *vynew;
     data_t *vzold, *vznew;
+
+    buffer_t *p_recv, *p_send;
+    buffer_t *vx_recv, *vx_send;
+    buffer_t *vy_recv, *vy_send;
+    buffer_t *vz_recv, *vz_send;
 
 } simulation_data_t;
 

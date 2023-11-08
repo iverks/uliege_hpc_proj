@@ -3,7 +3,7 @@
 #SBATCH --nodes=1-1
 #SBATCH --ntasks=27
 #SBATCH --cpus-per-task=1
-#SBATCH --time=01:00
+#SBATCH --time=00:10
 #SBATCH --output=firstjob.out
 
 echo "Hello! I'm job with ID ${SLURM_JOBID}."

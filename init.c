@@ -34,12 +34,24 @@ data_t* allocate_data(grid_t* grid) {
 
     data->grid = *grid;
 
+    return data;
+}
+
+buffer_t* allocate_buffer(grid_t* grid) {
+    buffer_t* data;
+
+    if ((data = malloc(sizeof(buffer_t))) == NULL) {
+        DEBUG_PRINT("Failed to allocate memory for data struct");
+        free(data);
+        return NULL;
+    }
+
+    data->grid = *grid;
     // Buffer code
     int numbuffers = BUFFER_DIR_TYPE_END * BUFFER_TYPE_TYPE_END;
     if ((data->buffers = malloc(numbuffers * sizeof(double*))) == NULL) {
         DEBUG_PRINT("Failed to allocate memory for buffer pointers");
         free(data->buffers);
-        free(data->vals);
         free(data);
         return NULL;
     }
@@ -47,13 +59,13 @@ data_t* allocate_data(grid_t* grid) {
     int success = 1;
     for (buffer_direction_t b_dir = 0; b_dir < BUFFER_DIR_TYPE_END; b_dir++) {
         for (buffer_type_t b_type = 0; b_type < BUFFER_TYPE_TYPE_END; b_type++) {
-            int numnodesx = data->grid.numnodesx;
+            int numnodesx = NUMNODESX(data);
             if (b_dir == X_MAX || b_dir == X_MIN) {
-                numnodesx = data->grid.numnodesy;
+                numnodesx = NUMNODESY(data);
             }
-            int numnodesy = data->grid.numnodesz;
+            int numnodesy = NUMNODESZ(data);
             if (b_dir == Z_MAX || b_dir == Z_MIN) {
-                numnodesy = data->grid.numnodesy;
+                numnodesy = NUMNODESY(data);
             }
             int buffer_idx = b_dir + BUFFER_DIR_TYPE_END * b_type;
             int numnodestot = numnodesx * numnodesy;
@@ -64,12 +76,11 @@ data_t* allocate_data(grid_t* grid) {
     }
 
     if (!success) {
+        DEBUG_PRINT("Failed to allocate memory for buffers");
         for (int buffer_idx = 0; buffer_idx < numbuffers; buffer_idx++) {
             free(data->buffers[buffer_idx]);
         }
-        DEBUG_PRINT("Failed to allocate memory for buffers");
         free(data->buffers);
-        free(data->vals);
         free(data);
         return NULL;
     }
@@ -90,8 +101,6 @@ void fill_data(data_t* data, double value) {
             }
         }
     }
-
-    fill_buffers(data, value);
 }
 
 /******************************************************************************
@@ -247,6 +256,18 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
         exit(1);
     }
 
+    // Add cartesian coordinates to filename
+    for (int i = 0; i < simdata->params.numoutputs; i++) {
+        char* outfilei = simdata->params.outputs[i].filename;
+        char formatted_filename[BUFSZ_LARGE];
+        sprintf(formatted_filename, "%d_%d_%d_%s", x_cart, y_cart, z_cart, outfilei);
+        free(outfilei);
+        outfilei = copy_string(formatted_filename);
+        DEBUG_PRINT(outfilei);
+    }
+
+    // End of adding cartesian coordinates to filename
+
     grid_t rhoin_grid;
     grid_t cin_grid;
     grid_t sim_grid;
@@ -347,6 +368,18 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
         exit(1);
     }
 
+    if ((simdata->p_recv = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->vx_recv = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->vy_recv = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->vz_recv = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->p_send = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->vx_send = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->vy_send = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->vz_send = allocate_buffer(&sim_grid)) == NULL) {
+        printf("Failed to allocate buffer memory. Aborting...\n\n");
+        exit(1);
+    }
+
     fill_data(simdata->pold, 0.0);
     fill_data(simdata->pnew, 0.0);
 
@@ -356,6 +389,15 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     fill_data(simdata->vyold, 0.0);
     fill_data(simdata->vznew, 0.0);
     fill_data(simdata->vzold, 0.0);
+
+    fill_buffers(simdata->p_recv, 0.0);
+    fill_buffers(simdata->vx_recv, 0.0);
+    fill_buffers(simdata->vy_recv, 0.0);
+    fill_buffers(simdata->vz_recv, 0.0);
+    fill_buffers(simdata->p_recv, 0.0);
+    fill_buffers(simdata->vx_recv, 0.0);
+    fill_buffers(simdata->vy_recv, 0.0);
+    fill_buffers(simdata->vz_recv, 0.0);
 
     printf("\n");
     printf(" Grid spacing: %g\n", simdata->params.dx);
@@ -420,6 +462,8 @@ void finalize_simulation(simulation_data_t* simdata) {
     free(simdata->c->vals);
     free(simdata->c);
 
+    // TODO: Free buffers
+    // free_buffers(simdata->pold);
     free(simdata->pold->vals);
     free(simdata->pold);
     free(simdata->pnew->vals);

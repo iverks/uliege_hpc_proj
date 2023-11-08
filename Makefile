@@ -3,6 +3,7 @@
 CC:=mpicc
 # CFLAGS will be the options passed to the compiler.
 CFLAGS:= -O3 -Wall -Wextra -lm 
+CFLAGS:=$(CFLAGS) -g # Add debugging symbols
 # CFLAGS:=$(CFLAGS) -fopenmp
 
 build: fdtd.c fdtd.h init.c init.h sending.c sending.h utilities.c utilities.h

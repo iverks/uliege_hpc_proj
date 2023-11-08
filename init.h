@@ -15,6 +15,15 @@
 data_t* allocate_data(grid_t* grid);
 
 /**
+ * @brief Allocate a new buffer object and 6 2D arrays to store values according to
+ *        the grid provided in argument
+ *
+ * @param grid [IN] the grid describing the 3D array to allocate buffers for
+ * @return buffer_t* return a new data object or NULL if allocation failed
+ */
+buffer_t* allocate_buffer(grid_t* grid);
+
+/**
  * @brief Fills the 3D array of a data object with the value passed in argument
  *
  * @param data  [IN] the data object to fill
@@ -87,6 +96,8 @@ int write_data(FILE* fp, data_t* data, int step, double time);
  * @param simdata [OUT] a simulation data that will be used to store the data
  * used during the simulation
  * @param params_filename [IN] a path to a parameter file to read
+ * @param coords [IN] cartesian coordinates representing the position
+ * in the grid this process corresponds to
  */
 void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[]);
 
