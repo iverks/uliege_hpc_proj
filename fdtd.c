@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "init.h"
+#include "sending.h"
 #include "utilities.h"
 
 const char* source_type_keywords[] = {[SINE] = "sine", [AUDIO] = "audio"};
@@ -548,9 +549,9 @@ void update_pressure(simulation_data_t* simdata) {
                 double dvy = GETVALUE(simdata->vyold, m, n, p);
                 double dvz = GETVALUE(simdata->vzold, m, n, p);
 
-                dvx -= m > 0 ? GETVALUE(simdata->vxold, m - 1, n, p) : 0.0;
-                dvy -= n > 0 ? GETVALUE(simdata->vyold, m, n - 1, p) : 0.0;
-                dvz -= p > 0 ? GETVALUE(simdata->vzold, m, n, p - 1) : 0.0;
+                dvx -= m > 0 ? GETVALUE(simdata->vxold, m - 1, n, p) : *read_from_buffer(simdata->v_buf_old, -1, n, p);
+                dvy -= n > 0 ? GETVALUE(simdata->vyold, m, n - 1, p) : *read_from_buffer(simdata->v_buf_old, m, -1, p);
+                dvz -= p > 0 ? GETVALUE(simdata->vzold, m, n, p - 1) : *read_from_buffer(simdata->v_buf_old, m, n, -1);
 
                 double prev_p = GETVALUE(simdata->pold, m, n, p);
 
@@ -571,17 +572,17 @@ void update_velocities(simulation_data_t* simdata) {
     for (int m = 0; m < numnodesx; m++) {
         for (int n = 0; n < numnodesy; n++) {
             for (int p = 0; p < numnodesz; p++) {
-                int mp1 = MIN(numnodesx - 1, m + 1);
-                int np1 = MIN(numnodesy - 1, n + 1);
-                int pp1 = MIN(numnodesz - 1, p + 1);
-
                 double dtdxrho = dtdx / GETVALUE(simdata->rhohalf, m, n, p);
 
-                double p_mnq = GETVALUE(simdata->pnew, m, n, p);
+                double p_mnq = GETVALUE(simdata->pold, m, n, p);
 
-                double dpx = GETVALUE(simdata->pnew, mp1, n, p) - p_mnq;
-                double dpy = GETVALUE(simdata->pnew, m, np1, p) - p_mnq;
-                double dpz = GETVALUE(simdata->pnew, m, n, pp1) - p_mnq;
+                double p_x = m + 1 >= numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : *read_from_buffer(simdata->p_buf_old, numnodesx, n, p);
+                double p_y = n + 1 >= numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : *read_from_buffer(simdata->p_buf_old, m, numnodesy, p);
+                double p_z = p + 1 >= numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : *read_from_buffer(simdata->p_buf_old, m, n, numnodesz);
+
+                double dpx = p_x - p_mnq;
+                double dpy = p_y - p_mnq;
+                double dpz = p_z - p_mnq;
 
                 double prev_vx = GETVALUE(simdata->vxold, m, n, p);
                 double prev_vy = GETVALUE(simdata->vyold, m, n, p);
@@ -595,14 +596,17 @@ void update_velocities(simulation_data_t* simdata) {
     }
 }
 
-void swap_timesteps(simulation_data_t* simdata) {
+void swap_p_timesteps(simulation_data_t* simdata) {
     data_t* tmpp = simdata->pold;
+    simdata->pold = simdata->pnew;
+    simdata->pnew = tmpp;
+}
+
+void swap_v_timesteps(simulation_data_t* simdata) {
     data_t* tmpvx = simdata->vxold;
     data_t* tmpvy = simdata->vyold;
     data_t* tmpvz = simdata->vzold;
 
-    simdata->pold = simdata->pnew;
-    simdata->pnew = tmpp;
     simdata->vxold = simdata->vxnew;
     simdata->vxnew = tmpvx;
     simdata->vyold = simdata->vynew;
@@ -657,7 +661,18 @@ int main(int argc, const char* argv[]) {
     simulation_data_t simdata;
     init_simulation(&simdata, argv[1], coords, dims);
 
-    // MPI_Request *n_reqs, s_reqs, e_reqs, w_reqs, i_reqs, o_reqs;
+    MPI_Request px_send_req,
+        py_send_req,
+        pz_send_req,
+        vx_send_req,
+        vy_send_req,
+        vz_send_req,
+        px_recv_req,
+        py_recv_req,
+        pz_recv_req,
+        vx_recv_req,
+        vy_recv_req,
+        vz_recv_req;
 
     int numtimesteps = floor(simdata.params.maxt / simdata.params.dt);
 
@@ -708,10 +723,17 @@ int main(int argc, const char* argv[]) {
             fflush(stdout);
         }
 
+        rotate_v_recv_request(tstep, &vx_recv_req, &vy_recv_req, &vz_recv_req, simdata.v_buf_old, simdata.v_buf_new, cart_comm);
         update_pressure(&simdata);
-        update_velocities(&simdata);
+        swap_p_timesteps(&simdata);
+        copy_send_p_data_to_buffers(&simdata);
+        rotate_p_send_request(tstep, &px_send_req, &py_send_req, &pz_send_req, simdata.p_buf_old, simdata.p_buf_new, cart_comm);
 
-        swap_timesteps(&simdata);
+        rotate_p_recv_request(tstep, &px_recv_req, &py_recv_req, &pz_recv_req, simdata.p_buf_old, simdata.p_buf_new, cart_comm);
+        update_velocities(&simdata);
+        swap_v_timesteps(&simdata);
+        copy_send_v_data_to_buffers(&simdata);
+        rotate_v_send_request(tstep, &vx_send_req, &vy_send_req, &vz_send_req, simdata.v_buf_old, simdata.v_buf_new, cart_comm);
     }
 
     DEBUG_PRINT("All good, time to clean up");

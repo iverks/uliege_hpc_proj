@@ -108,12 +108,6 @@ typedef enum buffer_direction {
     BUFFER_DIR_TYPE_END
 } buffer_direction_t;
 
-typedef enum buffer_type {
-    SND = 0,
-    RCV,
-    BUFFER_TYPE_TYPE_END
-} buffer_type_t;
-
 typedef struct grid {
     int numnodesx;
     int numnodesy;
@@ -197,11 +191,8 @@ typedef struct simulation_data {
     data_t *vyold, *vynew;
     data_t *vzold, *vznew;
 
-    buffer_t *p_recv, *p_send;
-    buffer_t *vx_recv, *vx_send;
-    buffer_t *vy_recv, *vy_send;
-    buffer_t *vz_recv, *vz_send;
-
+    buffer_t *p_buf_old, *p_buf_new;
+    buffer_t *v_buf_old, *v_buf_new;
 } simulation_data_t;
 
 /**
@@ -339,4 +330,11 @@ void update_velocities(simulation_data_t* simdata);
  *
  * @param simdata [INOUT] a simulation data object describing the simulation
  */
-void swap_timesteps(simulation_data_t* simdata);
+void swap_p_timesteps(simulation_data_t* simdata);
+
+/**
+ * @brief Swap the time steps data, i.e., make the new time step the old one
+ *
+ * @param simdata [INOUT] a simulation data object describing the simulation
+ */
+void swap_v_timesteps(simulation_data_t* simdata);

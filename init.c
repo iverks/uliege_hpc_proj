@@ -48,7 +48,7 @@ buffer_t* allocate_buffer(grid_t* grid) {
 
     data->grid = *grid;
     // Buffer code
-    int numbuffers = BUFFER_DIR_TYPE_END * BUFFER_TYPE_TYPE_END;
+    int numbuffers = BUFFER_DIR_TYPE_END;
     if ((data->buffers = malloc(numbuffers * sizeof(double*))) == NULL) {
         DEBUG_PRINT("Failed to allocate memory for buffer pointers");
         free(data->buffers);
@@ -58,20 +58,18 @@ buffer_t* allocate_buffer(grid_t* grid) {
 
     int success = 1;
     for (buffer_direction_t b_dir = 0; b_dir < BUFFER_DIR_TYPE_END; b_dir++) {
-        for (buffer_type_t b_type = 0; b_type < BUFFER_TYPE_TYPE_END; b_type++) {
-            int numnodesx = NUMNODESX(data);
-            if (b_dir == X_MAX || b_dir == X_MIN) {
-                numnodesx = NUMNODESY(data);
-            }
-            int numnodesy = NUMNODESZ(data);
-            if (b_dir == Z_MAX || b_dir == Z_MIN) {
-                numnodesy = NUMNODESY(data);
-            }
-            int buffer_idx = b_dir + BUFFER_DIR_TYPE_END * b_type;
-            int numnodestot = numnodesx * numnodesy;
-            if ((data->buffers[buffer_idx] = malloc(numnodestot * sizeof(double))) == NULL) {
-                success = 0;
-            }
+        int numnodesx = NUMNODESX(data);
+        if (b_dir == X_MAX || b_dir == X_MIN) {
+            numnodesx = NUMNODESY(data);
+        }
+        int numnodesy = NUMNODESZ(data);
+        if (b_dir == Z_MAX || b_dir == Z_MIN) {
+            numnodesy = NUMNODESY(data);
+        }
+        int buffer_idx = b_dir;
+        int numnodestot = numnodesx * numnodesy;
+        if ((data->buffers[buffer_idx] = malloc(numnodestot * sizeof(double))) == NULL) {
+            success = 0;
         }
     }
 
@@ -364,19 +362,6 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     }
     DEBUG_PRINT("Allocated simdata");
 
-    if ((simdata->p_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vx_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vy_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vz_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->p_send = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vx_send = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vy_send = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vz_send = allocate_buffer(&sim_grid)) == NULL) {
-        printf("Failed to allocate buffer memory. Aborting...\n\n");
-        exit(1);
-    }
-    DEBUG_PRINT("Allocated buffers");
-
     fill_data(simdata->pold, 0.0);
     fill_data(simdata->pnew, 0.0);
 
@@ -388,14 +373,19 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
 
     DEBUG_PRINT("Filled simdata");
 
-    fill_buffers(simdata->p_recv, 0.0);
-    fill_buffers(simdata->vx_recv, 0.0);
-    fill_buffers(simdata->vy_recv, 0.0);
-    fill_buffers(simdata->vz_recv, 0.0);
-    fill_buffers(simdata->p_recv, 0.0);
-    fill_buffers(simdata->vx_recv, 0.0);
-    fill_buffers(simdata->vy_recv, 0.0);
-    fill_buffers(simdata->vz_recv, 0.0);
+    if ((simdata->p_buf_old = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->v_buf_old = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->p_buf_new = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->v_buf_new = allocate_buffer(&sim_grid)) == NULL) {
+        printf("Failed to allocate buffer memory. Aborting...\n\n");
+        exit(1);
+    }
+    DEBUG_PRINT("Allocated buffers");
+
+    fill_buffers(simdata->p_buf_old, 0.0);
+    fill_buffers(simdata->v_buf_old, 0.0);
+    fill_buffers(simdata->p_buf_new, 0.0);
+    fill_buffers(simdata->v_buf_new, 0.0);
 
     DEBUG_PRINT("Filled buffers");
 

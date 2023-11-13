@@ -1,5 +1,6 @@
 #include "utilities.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,8 +85,8 @@ double trilinear_interpolate(data_t* dat, double x, double y, double z) {
  * Buffer utilities                                                           *
  ******************************************************************************/
 
-double* buffer_index(buffer_t* dat, int x, int y, buffer_direction_t b_dir, buffer_type_t b_type) {
-    int indexof_buffer = b_dir + BUFFER_DIR_TYPE_END * b_type;
+double* buffer_index(buffer_t* dat, int x, int y, buffer_direction_t b_dir) {
+    int indexof_buffer = b_dir;
     double* buffer = dat->buffers[indexof_buffer];
     int x_dim_size = NUMNODESX(dat);
     if (b_dir == X_MAX || b_dir == X_MIN) {
@@ -96,28 +97,64 @@ double* buffer_index(buffer_t* dat, int x, int y, buffer_direction_t b_dir, buff
 
 void fill_buffers(buffer_t* dat, double val) {
     for (buffer_direction_t b_dir = 0; b_dir < BUFFER_DIR_TYPE_END; b_dir++) {
-        for (buffer_type_t b_type = 0; b_type < BUFFER_TYPE_TYPE_END; b_type++) {
-            int numnodesx = NUMNODESX(dat);
-            if (b_dir == X_MAX || b_dir == X_MIN) {
-                numnodesx = NUMNODESY(dat);
-            }
-            int numnodesy = NUMNODESZ(dat);
-            if (b_dir == Z_MAX || b_dir == Z_MIN) {
-                numnodesy = NUMNODESY(dat);
-            }
-            for (int y = 0; y < numnodesy; y++) {
-                for (int x = 0; x < numnodesx; x++) {
-                    *buffer_index(dat, x, y, b_dir, b_type) = val;
-                }
+        int numnodesx = NUMNODESX(dat);
+        if (b_dir == X_MAX || b_dir == X_MIN) {
+            numnodesx = NUMNODESY(dat);
+        }
+        int numnodesy = NUMNODESZ(dat);
+        if (b_dir == Z_MAX || b_dir == Z_MIN) {
+            numnodesy = NUMNODESY(dat);
+        }
+        for (int y = 0; y < numnodesy; y++) {
+            for (int x = 0; x < numnodesx; x++) {
+                *buffer_index(dat, x, y, b_dir) = val;
             }
         }
     }
 }
 
+double* read_from_buffer(buffer_t* data, int m, int n, int p) {
+    int numnodesx = NUMNODESX(data);
+    int numnodesy = NUMNODESY(data);
+    int numnodesz = NUMNODESZ(data);
+    if (m == -1 || m == numnodesx) {
+        buffer_direction_t b_dir = m == -1 ? X_MIN : X_MAX;
+        assert(-1 < n && n < numnodesy);
+        assert(-1 < p && p < numnodesz);
+        return buffer_index(data, n, p, b_dir);
+    } else if (n == -1 || n == numnodesy) {
+        buffer_direction_t b_dir = n == -1 ? Y_MIN : Y_MAX;
+        assert(-1 < n && n < numnodesy);
+        assert(-1 < p && p < numnodesz);
+        return buffer_index(data, m, p, b_dir);
+    } else if (p == -1 || p == numnodesz) {
+        buffer_direction_t b_dir = p == -1 ? Z_MIN : Z_MAX;
+        assert(-1 < n && n < numnodesy);
+        assert(-1 < p && p < numnodesz);
+        return buffer_index(data, m, n, b_dir);
+    } else {
+        DEBUG_PRINT("CANNOT READ FROM BUFFER IN GRID")
+        exit(1);
+    }
+}
+
 void free_buffers(buffer_t* dat) {
-    int numbuffers = BUFFER_DIR_TYPE_END * BUFFER_TYPE_TYPE_END;
+    int numbuffers = BUFFER_DIR_TYPE_END;
     for (int buffer_idx = 0; buffer_idx < numbuffers; buffer_idx++) {
         free(dat->buffers[buffer_idx]);
     }
     free(dat->buffers);
+}
+
+int get_buffer_size(buffer_t* data, buffer_direction_t b_dir) {
+    int numnodesx = NUMNODESX(data);
+    if (b_dir == X_MAX || b_dir == X_MIN) {
+        numnodesx = NUMNODESY(data);
+    }
+    int numnodesy = NUMNODESZ(data);
+    if (b_dir == Z_MAX || b_dir == Z_MIN) {
+        numnodesy = NUMNODESY(data);
+    }
+    int numnodestot = numnodesx * numnodesy;
+    return numnodestot;
 }
