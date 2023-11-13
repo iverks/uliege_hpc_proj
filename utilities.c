@@ -87,9 +87,9 @@ double trilinear_interpolate(data_t* dat, double x, double y, double z) {
 double* buffer_index(buffer_t* dat, int x, int y, buffer_direction_t b_dir, buffer_type_t b_type) {
     int indexof_buffer = b_dir + BUFFER_DIR_TYPE_END * b_type;
     double* buffer = dat->buffers[indexof_buffer];
-    int x_dim_size = dat->grid.numnodesx;
+    int x_dim_size = NUMNODESX(dat);
     if (b_dir == X_MAX || b_dir == X_MIN) {
-        x_dim_size = dat->grid.numnodesy;
+        x_dim_size = NUMNODESY(dat);
     }
     return &buffer[x + y * x_dim_size];
 }
