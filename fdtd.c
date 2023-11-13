@@ -298,7 +298,6 @@ int read_outputparam(FILE* fp, output_t* output, int coords[]) {
 
     sprintf(formatted_filename, "%d_%d_%d_%s", coords[0], coords[1], coords[2], filename);
     output->filename = copy_string(formatted_filename);
-    // output->filename = copy_string(filename);
     output->type = type;
     output->source = source;
     output->posx = posxyz[0];
