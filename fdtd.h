@@ -3,9 +3,9 @@
 #include <mpi.h>
 #include <stdio.h>
 
-#define NUM_NODES 27
 #define NUM_DIMS 3
-#define NUM_NODES_PER_DIM 3
+// #define NUM_NODES 27
+// #define NUM_NODES_PER_DIM 3
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -18,14 +18,18 @@
 
 #else
 
-#define DEBUG_PRINTF(fmt, ...) \
-    printf("[DEBUG][%s:%d] " fmt "\n", __FILE__, __LINE__, __VA_ARGS__)
-#define DEBUG_PRINT(msg) printf("[DEBUG][%s:%d] %s\n", __FILE__, __LINE__, msg)
+#define DEBUG_PRINTF(fmt, ...)                                           \
+    printf("[DEBUG][%s:%d] " fmt "\n", __FILE__, __LINE__, __VA_ARGS__); \
+    fflush(stdout);
+#define DEBUG_PRINT(msg)                                    \
+    printf("[DEBUG][%s:%d] %s\n", __FILE__, __LINE__, msg); \
+    fflush(stdout);
 
 #endif
 
 #define MAX_OUTPUTS 32
 #define BUFSZ_LARGE 256
+#define BUFSZ_HUMONGOUS 512
 #define BUFSZ_SMALL 16
 
 #define BUFFMT_LARGE "%255s"
@@ -263,7 +267,7 @@ int read_audiosource(char* filename, source_t* source);
  * read from the parameter file
  * @return int 0 if read was a success, returns 1 otherwise
  */
-int read_outputparam(FILE* fp, output_t* output);
+int read_outputparam(FILE* fp, output_t* output, int coords[]);
 
 /**
  * @brief Read a source specification parameter from a parameter file
@@ -283,7 +287,7 @@ int read_sourceparam(FILE* fp, source_t* source);
  * @param filename [IN] path to the parameter file to read
  * @return int 0 if read was a success, returns 1 otherwise
  */
-int read_paramfile(parameters_t* params, const char* filename);
+int read_paramfile(parameters_t* params, const char* filename, int coords[]);
 
 /******************************************************************************
  * Simulation-related functions                                               *

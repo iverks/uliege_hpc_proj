@@ -97,9 +97,10 @@ int write_data(FILE* fp, data_t* data, int step, double time);
  * used during the simulation
  * @param params_filename [IN] a path to a parameter file to read
  * @param coords [IN] cartesian coordinates representing the position
+ * @param dims [IN] number of slices in each direction
  * in the grid this process corresponds to
  */
-void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[]);
+void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[], int dims[]);
 
 /**
  * @brief Finalize the simulation by deallocating the data used for the

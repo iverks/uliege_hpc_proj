@@ -1,11 +1,14 @@
 #include "fdtd.h"
 
 #include <assert.h>
+#include <execinfo.h>
 #include <math.h>
 #include <mpi.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "init.h"
 #include "utilities.h"
@@ -223,7 +226,7 @@ int read_audiosource(char* filename, source_t* source) {
     return 0;
 }
 
-int read_outputparam(FILE* fp, output_t* output) {
+int read_outputparam(FILE* fp, output_t* output, int coords[]) {
     if (fp == NULL || output == NULL) {
         DEBUG_PRINT("NULL passed as argement");
         return 1;
@@ -232,6 +235,7 @@ int read_outputparam(FILE* fp, output_t* output) {
     char typekeyword[BUFSZ_SMALL];
     char sourcekeyword[BUFSZ_SMALL];
     char filename[BUFSZ_LARGE];
+    char formatted_filename[BUFSZ_HUMONGOUS];
 
     double posxyz[3] = {0.0, 0.0, 0.0};
 
@@ -292,7 +296,9 @@ int read_outputparam(FILE* fp, output_t* output) {
         return 1;
     }
 
-    output->filename = copy_string(filename);
+    sprintf(formatted_filename, "%d_%d_%d_%s", coords[0], coords[1], coords[2], filename);
+    output->filename = copy_string(formatted_filename);
+    // output->filename = copy_string(filename);
     output->type = type;
     output->source = source;
     output->posx = posxyz[0];
@@ -370,7 +376,7 @@ int read_sourceparam(FILE* fp, source_t* source) {
     return 0;
 }
 
-int read_paramfile(parameters_t* params, const char* filename) {
+int read_paramfile(parameters_t* params, const char* filename, int coords[]) {
     if (params == NULL || filename == NULL) {
         DEBUG_PRINT("Invalid print_out params or filename");
         return 1;
@@ -407,7 +413,7 @@ int read_paramfile(parameters_t* params, const char* filename) {
               fscanf(fp, " ") == 0);
 
     while (readok != 0 && numoutputs < MAX_OUTPUTS && feof(fp) == 0) {
-        readok = (read_outputparam(fp, &outputs[numoutputs++]) == 0 &&
+        readok = (read_outputparam(fp, &outputs[numoutputs++], coords) == 0 &&
                   fscanf(fp, " ") == 0);
     }
 
@@ -606,7 +612,22 @@ void swap_timesteps(simulation_data_t* simdata) {
     simdata->vznew = tmpvz;
 }
 
+// Segfault handler
+void handler(int sig) {
+    void* array[10];
+    size_t size;
+
+    // get void*'s for all entries on the stack
+    size = backtrace(array, 10);
+
+    // print out all the frames to stderr
+    printf("Error: signal %d:\n", sig);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+    exit(1);
+}
+
 int main(int argc, const char* argv[]) {
+    signal(SIGSEGV, handler);  // install our handler
     if (argc < 2) {
         printf("\nUsage: ./fdtd <param_file>\n\n");
         exit(1);
@@ -616,17 +637,15 @@ int main(int argc, const char* argv[]) {
 
     int num_processes;
     MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
-    assert(num_processes == NUM_NODES);
+    DEBUG_PRINTF("Using %d processes, %d dims", num_processes, NUM_DIMS);
 
-    // We want 3x3x3 processes
-    int test_num_nodes = 1;
-    for (int i = 0; i < NUM_DIMS; i++) {
-        test_num_nodes *= NUM_NODES_PER_DIM;
-    }
-    assert(NUM_NODES == test_num_nodes);
-    int dims[NUM_DIMS] = {NUM_NODES_PER_DIM, NUM_NODES_PER_DIM, NUM_NODES_PER_DIM};
+    // dims must be initialized to 0 or their upper bound to not throw
+    int dims[NUM_DIMS] = {0, 0, 0};
+    MPI_Dims_create(num_processes, NUM_DIMS, dims);
+
+    DEBUG_PRINTF("Created a %dx%dx%d simulation", dims[0], dims[1], dims[2]);
+
     int periods[NUM_DIMS] = {0, 0, 0};
-
     MPI_Comm cart_comm;
     MPI_Cart_create(MPI_COMM_WORLD, NUM_DIMS, dims, periods, 0, &cart_comm);
 
@@ -637,7 +656,7 @@ int main(int argc, const char* argv[]) {
     MPI_Cart_coords(cart_comm, cart_rank, NUM_DIMS, coords);
 
     simulation_data_t simdata;
-    init_simulation(&simdata, argv[1], coords);
+    init_simulation(&simdata, argv[1], coords, dims);
 
     // MPI_Request *n_reqs, s_reqs, e_reqs, w_reqs, i_reqs, o_reqs;
 
@@ -696,6 +715,8 @@ int main(int argc, const char* argv[]) {
         swap_timesteps(&simdata);
     }
 
+    DEBUG_PRINT("All good, time to clean up");
+
     double elapsed = GET_TIME() - start;
     double numupdates =
         (double)NUMNODESTOT(simdata.pold->grid) * (numtimesteps + 1);
@@ -705,6 +726,7 @@ int main(int argc, const char* argv[]) {
            updatespers);
 
     finalize_simulation(&simdata);
+    DEBUG_PRINT("Only thing missing is MPI finalize");
     MPI_Finalize();
 
     return 0;

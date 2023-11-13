@@ -247,26 +247,19 @@ int write_data(FILE* fp, data_t* data, int step, double time) {
     return 0;
 }
 
-void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[]) {
-    int x_cart = coords[0];
-    int y_cart = coords[1];
-    int z_cart = coords[2];
-    if (read_paramfile(&simdata->params, params_filename) != 0) {
+void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[], int dims[]) {
+    int x_coord = coords[0];
+    int y_coord = coords[1];
+    int z_coord = coords[2];
+
+    int x_dim = dims[0];
+    int y_dim = dims[1];
+    int z_dim = dims[2];
+
+    if (read_paramfile(&simdata->params, params_filename, coords) != 0) {
         printf("Failed to read parameters. Aborting...\n\n");
         exit(1);
     }
-
-    // Add cartesian coordinates to filename
-    for (int i = 0; i < simdata->params.numoutputs; i++) {
-        char* outfilei = simdata->params.outputs[i].filename;
-        char formatted_filename[BUFSZ_LARGE];
-        sprintf(formatted_filename, "%d_%d_%d_%s", x_cart, y_cart, z_cart, outfilei);
-        free(outfilei);
-        outfilei = copy_string(formatted_filename);
-        DEBUG_PRINT(outfilei);
-    }
-
-    // End of adding cartesian coordinates to filename
 
     grid_t rhoin_grid;
     grid_t cin_grid;
@@ -313,17 +306,18 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     int totalnumnodesx = MAX(floor((rhoin_grid.xmax - rhoin_grid.xmin) / (simdata->params.dx)), 1);
     int totalnumnodesy = MAX(floor((rhoin_grid.ymax - rhoin_grid.ymin) / (simdata->params.dx)), 1);
     int totalnumnodesz = MAX(floor((rhoin_grid.zmax - rhoin_grid.zmin) / (simdata->params.dx)), 1);
+    DEBUG_PRINTF("Total num nodes on grid is %dx%dx%d", totalnumnodesx, totalnumnodesy, totalnumnodesz);
 
-    sim_grid.numnodesx = totalnumnodesx / NUM_NODES_PER_DIM;
-    sim_grid.numnodesy = totalnumnodesy / NUM_NODES_PER_DIM;
-    sim_grid.numnodesz = totalnumnodesz / NUM_NODES_PER_DIM;
+    sim_grid.numnodesx = totalnumnodesx / x_dim;
+    sim_grid.numnodesy = totalnumnodesy / y_dim;
+    sim_grid.numnodesz = totalnumnodesz / z_dim;
 
-    sim_grid.xmin = rhoin_grid.xmin + (sim_grid.numnodesx) * x_cart * simdata->params.dx;
-    sim_grid.xmax = rhoin_grid.xmin + (sim_grid.numnodesx) * (x_cart + 1) * simdata->params.dx;
-    sim_grid.ymin = rhoin_grid.ymin + (sim_grid.numnodesy) * y_cart * simdata->params.dx;
-    sim_grid.ymax = rhoin_grid.ymin + (sim_grid.numnodesy) * (y_cart + 1) * simdata->params.dx;
-    sim_grid.zmin = rhoin_grid.zmin + (sim_grid.numnodesz) * z_cart * simdata->params.dx;
-    sim_grid.zmax = rhoin_grid.zmin + (sim_grid.numnodesz) * (z_cart + 1) * simdata->params.dx;
+    sim_grid.xmin = rhoin_grid.xmin + (sim_grid.numnodesx) * x_coord * simdata->params.dx;
+    sim_grid.xmax = rhoin_grid.xmin + (sim_grid.numnodesx) * (x_coord + 1) * simdata->params.dx;
+    sim_grid.ymin = rhoin_grid.ymin + (sim_grid.numnodesy) * y_coord * simdata->params.dx;
+    sim_grid.ymax = rhoin_grid.ymin + (sim_grid.numnodesy) * (y_coord + 1) * simdata->params.dx;
+    sim_grid.zmin = rhoin_grid.zmin + (sim_grid.numnodesz) * z_coord * simdata->params.dx;
+    sim_grid.zmax = rhoin_grid.zmin + (sim_grid.numnodesz) * (z_coord + 1) * simdata->params.dx;
 
     if (interpolate_inputmaps(simdata, &sim_grid, c_map, rho_map) != 0) {
         printf(
@@ -356,6 +350,7 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
         }
     }
 
+    DEBUG_PRINT("About to allocate simdata");
     if ((simdata->pold = allocate_data(&sim_grid)) == NULL ||
         (simdata->pnew = allocate_data(&sim_grid)) == NULL ||
         (simdata->vxold = allocate_data(&sim_grid)) == NULL ||
@@ -367,37 +362,42 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
         printf("Failed to allocate memory. Aborting...\n\n");
         exit(1);
     }
+    DEBUG_PRINT("Allocated simdata");
 
-    if ((simdata->p_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vx_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vy_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vz_recv = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->p_send = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vx_send = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vy_send = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->vz_send = allocate_buffer(&sim_grid)) == NULL) {
-        printf("Failed to allocate buffer memory. Aborting...\n\n");
-        exit(1);
-    }
+    // if ((simdata->p_recv = allocate_buffer(&sim_grid)) == NULL ||
+    //     (simdata->vx_recv = allocate_buffer(&sim_grid)) == NULL ||
+    //     (simdata->vy_recv = allocate_buffer(&sim_grid)) == NULL ||
+    //     (simdata->vz_recv = allocate_buffer(&sim_grid)) == NULL ||
+    //     (simdata->p_send = allocate_buffer(&sim_grid)) == NULL ||
+    //     (simdata->vx_send = allocate_buffer(&sim_grid)) == NULL ||
+    //     (simdata->vy_send = allocate_buffer(&sim_grid)) == NULL ||
+    //     (simdata->vz_send = allocate_buffer(&sim_grid)) == NULL) {
+    //     printf("Failed to allocate buffer memory. Aborting...\n\n");
+    //     exit(1);
+    // }
+    // DEBUG_PRINT("Allocated buffers");
 
     fill_data(simdata->pold, 0.0);
     fill_data(simdata->pnew, 0.0);
 
-    fill_data(simdata->vynew, 0.0);
     fill_data(simdata->vxold, 0.0);
     fill_data(simdata->vynew, 0.0);
     fill_data(simdata->vyold, 0.0);
     fill_data(simdata->vznew, 0.0);
     fill_data(simdata->vzold, 0.0);
 
-    fill_buffers(simdata->p_recv, 0.0);
-    fill_buffers(simdata->vx_recv, 0.0);
-    fill_buffers(simdata->vy_recv, 0.0);
-    fill_buffers(simdata->vz_recv, 0.0);
-    fill_buffers(simdata->p_recv, 0.0);
-    fill_buffers(simdata->vx_recv, 0.0);
-    fill_buffers(simdata->vy_recv, 0.0);
-    fill_buffers(simdata->vz_recv, 0.0);
+    DEBUG_PRINT("Filled simdata");
+
+    // fill_buffers(simdata->p_recv, 0.0);
+    // fill_buffers(simdata->vx_recv, 0.0);
+    // fill_buffers(simdata->vy_recv, 0.0);
+    // fill_buffers(simdata->vz_recv, 0.0);
+    // fill_buffers(simdata->p_recv, 0.0);
+    // fill_buffers(simdata->vx_recv, 0.0);
+    // fill_buffers(simdata->vy_recv, 0.0);
+    // fill_buffers(simdata->vz_recv, 0.0);
+
+    // DEBUG_PRINT("Filled buffers");
 
     printf("\n");
     printf(" Grid spacing: %g\n", simdata->params.dx);
@@ -439,8 +439,11 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
 }
 
 void finalize_simulation(simulation_data_t* simdata) {
+    DEBUG_PRINT("I'm gonna free");
+
     if (simdata->params.outputs != NULL) {
         for (int i = 0; i < simdata->params.numoutputs; i++) {
+            DEBUG_PRINTF("Freeing output %d, %s", i, simdata->params.outputs[i].filename);
             free(simdata->params.outputs[i].filename);
 
             if (simdata->params.outrate > 0) {
@@ -450,6 +453,8 @@ void finalize_simulation(simulation_data_t* simdata) {
 
         free(simdata->params.outputs);
     }
+
+    DEBUG_PRINT("Freed simdata outputs");
 
     free(simdata->params.source.data);
     free(simdata->params.cin_filename);
