@@ -5,3 +5,4 @@ fdtd
 **/*.msh
 build
 firstjob.out
+output
