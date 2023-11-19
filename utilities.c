@@ -124,13 +124,13 @@ double* read_from_buffer(buffer_t* data, int m, int n, int p) {
         return buffer_index(data, n, p, b_dir);
     } else if (n == -1 || n == numnodesy) {
         buffer_direction_t b_dir = n == -1 ? Y_MIN : Y_MAX;
-        assert(-1 < n && n < numnodesy);
+        assert(-1 < m && m < numnodesx);
         assert(-1 < p && p < numnodesz);
         return buffer_index(data, m, p, b_dir);
     } else if (p == -1 || p == numnodesz) {
         buffer_direction_t b_dir = p == -1 ? Z_MIN : Z_MAX;
+        assert(-1 < m && m < numnodesx);
         assert(-1 < n && n < numnodesy);
-        assert(-1 < p && p < numnodesz);
         return buffer_index(data, m, n, b_dir);
     } else {
         DEBUG_PRINT("CANNOT READ FROM BUFFER IN GRID")

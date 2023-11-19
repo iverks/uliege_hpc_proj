@@ -323,7 +323,7 @@ void update_pressure(simulation_data_t* simdata);
  * @param simdata [INOUT] a simulation data object used to get the input and
  * store result of the update step
  */
-void update_velocities(simulation_data_t* simdata);
+void update_velocities(simulation_data_t* simdata, int coords[], int dims[]);
 
 /**
  * @brief Swap the time steps data, i.e., make the new time step the old one

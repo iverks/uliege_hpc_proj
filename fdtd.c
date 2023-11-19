@@ -562,7 +562,7 @@ void update_pressure(simulation_data_t* simdata) {
     }
 }
 
-void update_velocities(simulation_data_t* simdata) {
+void update_velocities(simulation_data_t* simdata, int coords[], int dims[]) {
     const double dtdx = simdata->params.dt / simdata->params.dx;
 
     const int numnodesx = NUMNODESX(simdata->vxold);
@@ -576,13 +576,22 @@ void update_velocities(simulation_data_t* simdata) {
 
                 double p_mnq = GETVALUE(simdata->pold, m, n, p);
 
-                double p_x = m + 1 >= numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : *read_from_buffer(simdata->p_buf_old, numnodesx, n, p);
-                double p_y = n + 1 >= numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : *read_from_buffer(simdata->p_buf_old, m, numnodesy, p);
-                double p_z = p + 1 >= numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : *read_from_buffer(simdata->p_buf_old, m, n, numnodesz);
+                double p_x = m + 1 < numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : *read_from_buffer(simdata->p_buf_old, m + 1, n, p);
+                double p_y = n + 1 < numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : *read_from_buffer(simdata->p_buf_old, m, n + 1, p);
+                double p_z = p + 1 < numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : *read_from_buffer(simdata->p_buf_old, m, n, p + 1);
 
                 double dpx = p_x - p_mnq;
+                if (coords[0] == dims[0] - 1 && m + 1 >= numnodesx) {
+                    dpx = 0.0;
+                }
                 double dpy = p_y - p_mnq;
+                if (coords[1] == dims[1] - 1 && n + 1 >= numnodesy) {
+                    dpy = 0.0;
+                }
                 double dpz = p_z - p_mnq;
+                if (coords[2] == dims[2] - 1 && p + 1 >= numnodesz) {
+                    dpz = 0.0;
+                }
 
                 double prev_vx = GETVALUE(simdata->vxold, m, n, p);
                 double prev_vy = GETVALUE(simdata->vyold, m, n, p);
@@ -677,6 +686,11 @@ int main(int argc, const char* argv[]) {
     int numtimesteps = floor(simdata.params.maxt / simdata.params.dt);
 
     double start = GET_TIME();
+    // Prepare to recieve already in loop idx 0
+    create_p_recv_request(0,
+                          &px_recv_req,
+                          &py_recv_req,
+                          &pz_recv_req, simdata.p_buf_new, cart_comm);
     for (int tstep = 0; tstep <= numtimesteps; tstep++) {
         apply_source(&simdata, tstep);
 
@@ -730,7 +744,7 @@ int main(int argc, const char* argv[]) {
         rotate_p_send_request(tstep, &px_send_req, &py_send_req, &pz_send_req, simdata.p_buf_old, simdata.p_buf_new, cart_comm);
 
         rotate_p_recv_request(tstep, &px_recv_req, &py_recv_req, &pz_recv_req, simdata.p_buf_old, simdata.p_buf_new, cart_comm);
-        update_velocities(&simdata);
+        update_velocities(&simdata, coords, dims);
         swap_v_timesteps(&simdata);
         copy_send_v_data_to_buffers(&simdata);
         rotate_v_send_request(tstep, &vx_send_req, &vy_send_req, &vz_send_req, simdata.v_buf_old, simdata.v_buf_new, cart_comm);
