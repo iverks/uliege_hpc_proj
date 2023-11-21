@@ -191,6 +191,9 @@ typedef struct simulation_data {
     data_t *vyold, *vynew;
     data_t *vzold, *vznew;
 
+    data_t* write_data;         // Structured
+    double* write_data_buffer;  // Unstructured
+
     buffer_t *p_buf_old, *p_buf_new;
     buffer_t *v_buf_old, *v_buf_new;
 } simulation_data_t;

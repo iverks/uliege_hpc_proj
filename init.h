@@ -100,7 +100,7 @@ int write_data(FILE* fp, data_t* data, int step, double time);
  * @param dims [IN] number of slices in each direction
  * in the grid this process corresponds to
  */
-void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[], int dims[]);
+void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[], int dims[], int cart_rank);
 
 /**
  * @brief Finalize the simulation by deallocating the data used for the

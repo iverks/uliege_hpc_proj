@@ -40,7 +40,7 @@ void rotate_v_recv_request(int timestep,
         v_buf_new->buffers[b_dirs_min[i]] = tmp;
     }
     // Create new reqs, here timestep is the timestep from which we send the data.
-    create_v_recv_request(timestep + 1, vx_recv_req, vy_recv_req, vz_recv_req, v_buf_new, cart_comm);
+    create_v_recv_request(timestep, vx_recv_req, vy_recv_req, vz_recv_req, v_buf_new, cart_comm);
 }
 
 // Remember we only send v towards +
@@ -92,9 +92,11 @@ void rotate_p_recv_request(int timestep,
     // Await old reqs
     MPI_Request* reqs[3] = {px_recv_req, py_recv_req, pz_recv_req};
     MPI_Request wait_reqs[3] = {*reqs[0], *reqs[1], *reqs[2]};
-    // if (timestep != 0) {
+    // int cart_rank;
+    // MPI_Comm_rank(cart_comm, &cart_rank);
+    // DEBUG_PRINTF("Waiting for p at ts %d, %d", timestep, cart_rank);
     MPI_Waitall(3, wait_reqs, MPI_STATUSES_IGNORE);
-    // }
+    // DEBUG_PRINTF("DONE    for p at ts %d, %d", timestep, cart_rank);
 
     // Shuffle buffers, be careful to not include send buffers.
     for (int i = 0; i < 3; i++) {
@@ -103,7 +105,7 @@ void rotate_p_recv_request(int timestep,
         p_buf_new->buffers[b_dirs_max[i]] = tmp;
     }
     // Create new reqs
-    create_p_recv_request(timestep, px_recv_req, py_recv_req, pz_recv_req, p_buf_new, cart_comm);
+    create_p_recv_request(timestep + 1, px_recv_req, py_recv_req, pz_recv_req, p_buf_new, cart_comm);
 }
 
 // Remember we send p towards -
