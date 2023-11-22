@@ -344,6 +344,9 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
             exit(1);
         }
         fill_data(simdata->write_data, 0.0);
+        for (int i = 0; i < numnodestot; i++) {
+            simdata->write_data_buffer[i] = 0;
+        }
     }
 
     if (interpolate_inputmaps(simdata, &sim_grid, c_map, rho_map) != 0) {
@@ -369,7 +372,7 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
         for (int i = 0; i < simdata->params.numoutputs; i++) {
             output_t* output = &simdata->params.outputs[i];
 
-            if (open_outputfile(output, &sim_grid) != 0) {
+            if (open_outputfile(output, &write_buffer_grid) != 0) {
                 printf("Failed to open output file: '%s'. Aborting...\n\n",
                        output->filename);
                 exit(1);

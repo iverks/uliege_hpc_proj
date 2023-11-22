@@ -718,7 +718,7 @@ int main(int argc, const char* argv[]) {
                 }
 
                 double time = tstep * simdata.params.dt;
-                MPI_Gather(&output_data->vals, NUMNODESTOT(output_data->grid), MPI_DOUBLE, simdata.write_data_buffer, NUMNODESTOT(output_data->grid), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+                MPI_Gather(output_data->vals, NUMNODESTOT(output_data->grid), MPI_DOUBLE, simdata.write_data_buffer, NUMNODESTOT(output_data->grid), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
                 if (cart_rank == 0) {
                     for (size_t j = 0; j < NUMNODESTOT(simdata.write_data->grid); j++) {
@@ -747,9 +747,15 @@ int main(int argc, const char* argv[]) {
 
                         assert(j < NUMNODESTOT(simdata.write_data->grid));
 
-                        SETVALUE(simdata.write_data, big_x, big_y, big_z, simdata.write_data_buffer[j]);
+                        // double data_to_write = 0.0;
+                        // if (src_x == 0 && src_y == 0 && src_z == 0) {
+                        //     data_to_write = GETVALUE(output_data, local_x, local_y, local_z);
+                        // }
+                        double data_to_write = simdata.write_data_buffer[j];
+                        SETVALUE(simdata.write_data, big_x, big_y, big_z, data_to_write);
                     }
                     write_output(&simdata.params.outputs[i], simdata.write_data, tstep, time);
+                    fill_data(simdata.write_data, 0.0);
                 };
             }
         }
