@@ -2,6 +2,8 @@
 
 #include <stdlib.h>
 
+#include "utilities.h"
+
 void print_source(source_t* source) {
     printf(" Source infos:\n\n");
 

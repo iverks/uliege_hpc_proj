@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <time.h>
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))

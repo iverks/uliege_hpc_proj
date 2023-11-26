@@ -1,3 +1,9 @@
+#include <assert.h>
+#include <execinfo.h>
+#include <math.h>
+#include <signal.h>
+#include <unistd.h>
+
 #include "buffer.h"
 #include "data.h"
 #include "output.h"
@@ -5,6 +11,8 @@
 #include "simulation.h"
 #include "types.h"
 #include "utilities.h"
+
+#define NUM_DIMS 3
 
 // Segfault handler
 void handler(int sig) {
