@@ -6,5 +6,5 @@ CFLAGS:= -O3 -Wall -Wextra -lm
 CFLAGS:=$(CFLAGS) -g # Add debugging symbols
 # CFLAGS:=$(CFLAGS) -fopenmp
 
-build: fdtd.c fdtd.h init.c init.h sending.c sending.h utilities.c utilities.h
-	$(CC) $(CFLAGS) -o fdtd fdtd.c init.c sending.c utilities.c
+build: main.c buffer.c buffer.h data.c data.h output.c output.h parameters.c parameters.h simulation.c simulation.h utilities.c utilities.h types.h
+	$(CC) $(CFLAGS) -o main.c buffer.c data.c output.c parameters.c simulation.c utilities.c

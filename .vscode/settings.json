@@ -3,6 +3,9 @@
         "*.excalidraw": "json",
         "*.excalidrawlib": "json",
         "stdlib.h": "c",
-        "fdtd.h": "c"
+        "fdtd.h": "c",
+        "limits": "c",
+        "execinfo.h": "c",
+        "utilities.h": "c"
     }
 }

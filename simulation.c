@@ -1,249 +1,11 @@
-#include "init.h"
+#include "simulation.h"
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "fdtd.h"
+#include "output.h"
 #include "utilities.h"
-
-/******************************************************************************
- * Data functions                                                             *
- ******************************************************************************/
-
-data_t* allocate_data(grid_t* grid) {
-    size_t numnodes = NUMNODESTOT(*grid);
-    if (numnodes <= 0) {
-        DEBUG_PRINTF("Invalid number of nodes (%lu)", numnodes);
-        return NULL;
-    }
-
-    data_t* data;
-    if ((data = malloc(sizeof(data_t))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory for data struct");
-        free(data);
-        return NULL;
-    }
-
-    if ((data->vals = malloc(numnodes * sizeof(double))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory for data vals");
-        free(data->vals);
-        free(data);
-        return NULL;
-    }
-
-    data->grid = *grid;
-
-    return data;
-}
-
-buffer_t* allocate_buffer(grid_t* grid) {
-    buffer_t* data;
-
-    if ((data = malloc(sizeof(buffer_t))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory for data struct");
-        free(data);
-        return NULL;
-    }
-
-    data->grid = *grid;
-    // Buffer code
-    int numbuffers = BUFFER_DIR_TYPE_END;
-    if ((data->buffers = malloc(numbuffers * sizeof(double*))) == NULL) {
-        DEBUG_PRINT("Failed to allocate memory for buffer pointers");
-        free(data->buffers);
-        free(data);
-        return NULL;
-    }
-
-    int success = 1;
-    for (buffer_direction_t b_dir = 0; b_dir < BUFFER_DIR_TYPE_END; b_dir++) {
-        int numnodesx = NUMNODESX(data);
-        if (b_dir == X_MAX || b_dir == X_MIN) {
-            numnodesx = NUMNODESY(data);
-        }
-        int numnodesy = NUMNODESZ(data);
-        if (b_dir == Z_MAX || b_dir == Z_MIN) {
-            numnodesy = NUMNODESY(data);
-        }
-        int buffer_idx = b_dir;
-        int numnodestot = numnodesx * numnodesy;
-        if ((data->buffers[buffer_idx] = malloc(numnodestot * sizeof(double))) == NULL) {
-            success = 0;
-        }
-    }
-
-    if (!success) {
-        DEBUG_PRINT("Failed to allocate memory for buffers");
-        for (int buffer_idx = 0; buffer_idx < numbuffers; buffer_idx++) {
-            free(data->buffers[buffer_idx]);
-        }
-        free(data->buffers);
-        free(data);
-        return NULL;
-    }
-
-    return data;
-}
-
-void fill_data(data_t* data, double value) {
-    if (data == NULL) {
-        DEBUG_PRINT("Invalid NULL data");
-        return;
-    }
-
-    for (int m = 0; m < NUMNODESX(data); m++) {
-        for (int n = 0; n < NUMNODESY(data); n++) {
-            for (int p = 0; p < NUMNODESZ(data); p++) {
-                SETVALUE(data, m, n, p, value);
-            }
-        }
-    }
-}
-
-/******************************************************************************
- * Data file functions                                                        *
- ******************************************************************************/
-
-FILE* create_datafile(grid_t grid, char* filename) {
-    if (filename == NULL) {
-        DEBUG_PRINT("Invalid NULL filename");
-        return NULL;
-    }
-
-    FILE* fp;
-    if ((fp = fopen(filename, "wb")) == NULL) {
-        DEBUG_PRINTF("Failed to open file '%s'", filename);
-        return NULL;
-    }
-
-    if (fwrite(&grid.numnodesx, sizeof(int), 1, fp) != 1 ||
-        fwrite(&grid.numnodesy, sizeof(int), 1, fp) != 1 ||
-        fwrite(&grid.numnodesz, sizeof(int), 1, fp) != 1 ||
-        fwrite(&grid.xmin, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.xmax, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.ymin, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.ymax, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.zmin, sizeof(double), 1, fp) != 1 ||
-        fwrite(&grid.zmax, sizeof(double), 1, fp) != 1) {
-        DEBUG_PRINTF("Failed to write header of file '%s'", filename);
-        fclose(fp);
-        return NULL;
-    }
-
-    return fp;
-}
-
-FILE* open_datafile(grid_t* grid, int* numsteps, char* filename) {
-    if (grid == NULL || filename == NULL) {
-        DEBUG_PRINT("Invalid NULL grid or filename");
-        return NULL;
-    }
-
-    FILE* fp;
-    if ((fp = fopen(filename, "rb")) == NULL) {
-        DEBUG_PRINTF("Failed to open file '%s'", filename);
-        return NULL;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    size_t file_size = ftell(fp);
-    rewind(fp);
-
-    if (fread(&grid->numnodesx, sizeof(int), 1, fp) != 1 ||
-        fread(&grid->numnodesy, sizeof(int), 1, fp) != 1 ||
-        fread(&grid->numnodesz, sizeof(int), 1, fp) != 1 ||
-        fread(&grid->xmin, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->xmax, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->ymin, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->ymax, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->zmin, sizeof(double), 1, fp) != 1 ||
-        fread(&grid->zmax, sizeof(double), 1, fp) != 1) {
-        DEBUG_PRINTF("Failed to read header of file '%s'", filename);
-        fclose(fp);
-        return NULL;
-    }
-
-    size_t numnodestot =
-        (size_t)grid->numnodesx * grid->numnodesy * grid->numnodesz;
-
-    size_t values_size = numnodestot * sizeof(double);
-    size_t stepindex_size = sizeof(int);
-    size_t timestamp_size = sizeof(double);
-    size_t header_size = 6 * sizeof(double) + 3 * sizeof(int);
-
-    size_t onetimestep_size = values_size + stepindex_size + timestamp_size;
-    size_t alltimestep_size = file_size - header_size;
-
-    if (alltimestep_size % onetimestep_size != 0) {
-        DEBUG_PRINTF("Data size is inconsistent with number of nodes (%lu, %lu)",
-                     alltimestep_size, onetimestep_size);
-
-        fclose(fp);
-        return NULL;
-    }
-
-    if (numsteps != NULL) {
-        *numsteps = (alltimestep_size / onetimestep_size);
-    }
-
-    return fp;
-}
-
-data_t* read_data(FILE* fp, grid_t* grid, int* step, double* time) {
-    if (fp == NULL) {
-        DEBUG_PRINT("Invalid NULL file pointer");
-        return NULL;
-    }
-
-    double ltime;
-    int lstep;
-
-    size_t numnodes = NUMNODESTOT(*grid);
-
-    data_t* data;
-    if ((data = allocate_data(grid)) == NULL) {
-        DEBUG_PRINT("Failed to allocate data");
-        return NULL;
-    }
-
-    if (fread(&lstep, sizeof(int), 1, fp) != 1 ||
-        fread(&ltime, sizeof(double), 1, fp) != 1 ||
-        fread(data->vals, sizeof(double), numnodes, fp) != numnodes) {
-        DEBUG_PRINT("Failed to read data");
-        free(data);
-        return NULL;
-    }
-
-    if (step != NULL)
-        *step = lstep;
-    if (time != NULL)
-        *time = ltime;
-
-    return data;
-}
-
-int write_data(FILE* fp, data_t* data, int step, double time) {
-    if (fp == NULL || data == NULL || data->vals == NULL) {
-        DEBUG_PRINT("Invalid NULL data or file pointer");
-        return 1;
-    }
-
-    size_t numnodes = NUMNODESTOT(data->grid);
-    if (numnodes <= 0) {
-        DEBUG_PRINTF("Invalid number of nodes (%lu)", numnodes);
-        return 1;
-    }
-
-    if (fwrite(&step, sizeof(int), 1, fp) != 1 ||
-        fwrite(&time, sizeof(double), 1, fp) != 1 ||
-        fwrite(data->vals, sizeof(double), numnodes, fp) != numnodes) {
-        DEBUG_PRINT("Failed to write data");
-        return 1;
-    }
-
-    return 0;
-}
 
 void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[], int dims[], int cart_rank) {
     int x_coord = coords[0];
@@ -503,4 +265,134 @@ void finalize_simulation(simulation_data_t* simdata) {
     free(simdata->vzold);
     free(simdata->vznew->vals);
     free(simdata->vznew);
+}
+
+void apply_source(simulation_data_t* simdata, int step) {
+    source_t* source = &simdata->params.source;
+
+    double posx = source->posx;
+    double posy = source->posy;
+    double posz = source->posz;
+
+    double xmin = simdata->pold->grid.xmin;
+    double xmax = simdata->pold->grid.xmax;
+    double ymin = simdata->pold->grid.ymin;
+    double ymax = simdata->pold->grid.ymax;
+    double zmin = simdata->pold->grid.zmin;
+    double zmax = simdata->pold->grid.zmax;
+
+    if (posx < xmin || posx > xmax || posy < ymin || posy > ymax || posz < zmin || posz > zmax) {
+        // Nothing to do
+        return;
+    }
+
+    double t = step * simdata->params.dt;
+
+    int m, n, p;
+    closest_index(&simdata->pold->grid, posx, posy, posz, &m, &n, &p);
+
+    if (source->type == SINE) {
+        double freq = source->data[0];
+
+        SETVALUE(simdata->pold, m, n, p, sin(2 * M_PI * freq * t));
+
+    } else if (source->type == AUDIO) {
+        int sample = MIN((int)(t * source->sampling), source->numsamples);
+
+        SETVALUE(simdata->pold, m, n, p, simdata->params.source.data[sample]);
+    }
+}
+
+void update_pressure(simulation_data_t* simdata) {
+    const double dtdx = simdata->params.dt / simdata->params.dx;
+
+    const int numnodesx = NUMNODESX(simdata->pold);
+    const int numnodesy = NUMNODESY(simdata->pold);
+    const int numnodesz = NUMNODESZ(simdata->pold);
+
+    for (int m = 0; m < numnodesx; m++) {
+        for (int n = 0; n < numnodesy; n++) {
+            for (int p = 0; p < numnodesz; p++) {
+                double c = GETVALUE(simdata->c, m, n, p);
+                double rho = GETVALUE(simdata->rho, m, n, p);
+
+                double rhoc2dtdx = rho * c * c * dtdx;
+
+                double dvx = GETVALUE(simdata->vxold, m, n, p);
+                double dvy = GETVALUE(simdata->vyold, m, n, p);
+                double dvz = GETVALUE(simdata->vzold, m, n, p);
+
+                dvx -= m > 0 ? GETVALUE(simdata->vxold, m - 1, n, p) : *read_from_buffer(simdata->v_buf_old, -1, n, p);
+                dvy -= n > 0 ? GETVALUE(simdata->vyold, m, n - 1, p) : *read_from_buffer(simdata->v_buf_old, m, -1, p);
+                dvz -= p > 0 ? GETVALUE(simdata->vzold, m, n, p - 1) : *read_from_buffer(simdata->v_buf_old, m, n, -1);
+
+                double prev_p = GETVALUE(simdata->pold, m, n, p);
+
+                SETVALUE(simdata->pnew, m, n, p,
+                         prev_p - rhoc2dtdx * (dvx + dvy + dvz));
+            }
+        }
+    }
+}
+
+void update_velocities(simulation_data_t* simdata, int coords[], int dims[]) {
+    const double dtdx = simdata->params.dt / simdata->params.dx;
+
+    const int numnodesx = NUMNODESX(simdata->vxold);
+    const int numnodesy = NUMNODESY(simdata->vxold);
+    const int numnodesz = NUMNODESZ(simdata->vxold);
+
+    for (int m = 0; m < numnodesx; m++) {
+        for (int n = 0; n < numnodesy; n++) {
+            for (int p = 0; p < numnodesz; p++) {
+                double dtdxrho = dtdx / GETVALUE(simdata->rhohalf, m, n, p);
+
+                double p_mnq = GETVALUE(simdata->pold, m, n, p);
+
+                double p_x = m + 1 < numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : *read_from_buffer(simdata->p_buf_old, m + 1, n, p);
+                double p_y = n + 1 < numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : *read_from_buffer(simdata->p_buf_old, m, n + 1, p);
+                double p_z = p + 1 < numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : *read_from_buffer(simdata->p_buf_old, m, n, p + 1);
+
+                double dpx = p_x - p_mnq;
+                if (coords[0] == dims[0] - 1 && m + 1 >= numnodesx) {
+                    dpx = 0.0;
+                }
+                double dpy = p_y - p_mnq;
+                if (coords[1] == dims[1] - 1 && n + 1 >= numnodesy) {
+                    dpy = 0.0;
+                }
+                double dpz = p_z - p_mnq;
+                if (coords[2] == dims[2] - 1 && p + 1 >= numnodesz) {
+                    dpz = 0.0;
+                }
+
+                double prev_vx = GETVALUE(simdata->vxold, m, n, p);
+                double prev_vy = GETVALUE(simdata->vyold, m, n, p);
+                double prev_vz = GETVALUE(simdata->vzold, m, n, p);
+
+                SETVALUE(simdata->vxnew, m, n, p, prev_vx - dtdxrho * dpx);
+                SETVALUE(simdata->vynew, m, n, p, prev_vy - dtdxrho * dpy);
+                SETVALUE(simdata->vznew, m, n, p, prev_vz - dtdxrho * dpz);
+            }
+        }
+    }
+}
+
+void swap_p_timesteps(simulation_data_t* simdata) {
+    data_t* tmpp = simdata->pold;
+    simdata->pold = simdata->pnew;
+    simdata->pnew = tmpp;
+}
+
+void swap_v_timesteps(simulation_data_t* simdata) {
+    data_t* tmpvx = simdata->vxold;
+    data_t* tmpvy = simdata->vyold;
+    data_t* tmpvz = simdata->vzold;
+
+    simdata->vxold = simdata->vxnew;
+    simdata->vxnew = tmpvx;
+    simdata->vyold = simdata->vynew;
+    simdata->vynew = tmpvy;
+    simdata->vzold = simdata->vznew;
+    simdata->vznew = tmpvz;
 }
