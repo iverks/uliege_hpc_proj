@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=JOB_ID_NAME
+#SBATCH --nodes=1-1
+#SBATCH --ntasks=27
+#SBATCH --cpus-per-task=1
+#SBATCH --time=01:00
+#SBATCH --output=./output/scalascajob.out
+
+module load OpenMPI
+module load Scalasca
+
+export OMP_PROC_BIND=true
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+
+export SRUN_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK}
+
+cd ./inputs/scalasca
+
+scalasca -analyze srun ../../fdtd_instr ./param_3d.txt

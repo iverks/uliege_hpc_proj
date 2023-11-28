@@ -8,3 +8,6 @@ CFLAGS:=$(CFLAGS) -g # Add debugging symbols
 
 build: main.c buffer.c buffer.h data.c data.h output.c output.h parameters.c parameters.h simulation.c simulation.h utilities.c utilities.h types.h
 	$(CC) $(CFLAGS) -o fdtd main.c buffer.c data.c output.c parameters.c simulation.c utilities.c
+
+score: main.c buffer.c buffer.h data.c data.h output.c output.h parameters.c parameters.h simulation.c simulation.h utilities.c utilities.h types.h
+	scorep $(CC) $(CFLAGS) -o fdtd_instr main.c buffer.c data.c output.c parameters.c simulation.c utilities.c

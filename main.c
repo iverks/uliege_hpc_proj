@@ -137,10 +137,6 @@ int main(int argc, const char* argv[]) {
 
                         assert(j < NUMNODESTOT(simdata.write_data->grid));
 
-                        // double data_to_write = 0.0;
-                        // if (src_x == 0 && src_y == 0 && src_z == 0) {
-                        //     data_to_write = GETVALUE(output_data, local_x, local_y, local_z);
-                        // }
                         double data_to_write = simdata.write_data_buffer[j];
                         SETVALUE(simdata.write_data, big_x, big_y, big_z, data_to_write);
                     }
