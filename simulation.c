@@ -163,18 +163,26 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     fill_data(simdata->vznew, 0.0);
     fill_data(simdata->vzold, 0.0);
 
-    if ((simdata->p_buf_old = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->v_buf_old = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->p_buf_new = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->v_buf_new = allocate_buffer(&sim_grid)) == NULL) {
+    if ((simdata->p_send_buf = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->p_send_buf_intransmit = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->p_recv_buf = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->p_recv_buf_intransmit = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->v_send_buf = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->v_send_buf_intransmit = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->v_recv_buf = allocate_buffer(&sim_grid)) == NULL ||
+        (simdata->v_recv_buf_intransmit = allocate_buffer(&sim_grid)) == NULL) {
         printf("Failed to allocate buffer memory. Aborting...\n\n");
         exit(1);
     }
 
-    fill_buffers(simdata->p_buf_old, 0.0);
-    fill_buffers(simdata->v_buf_old, 0.0);
-    fill_buffers(simdata->p_buf_new, 0.0);
-    fill_buffers(simdata->v_buf_new, 0.0);
+    fill_buffers(simdata->p_send_buf, 0.0);
+    fill_buffers(simdata->p_send_buf_intransmit, 0.0);
+    fill_buffers(simdata->p_recv_buf, 0.0);
+    fill_buffers(simdata->p_recv_buf_intransmit, 0.0);
+    fill_buffers(simdata->v_send_buf, 0.0);
+    fill_buffers(simdata->v_send_buf_intransmit, 0.0);
+    fill_buffers(simdata->v_recv_buf, 0.0);
+    fill_buffers(simdata->v_recv_buf_intransmit, 0.0);
 
     printf("\n");
     printf(" Grid spacing: %g\n", simdata->params.dx);
@@ -322,9 +330,9 @@ void update_pressure(simulation_data_t* simdata) {
                 double dvy = GETVALUE(simdata->vyold, m, n, p);
                 double dvz = GETVALUE(simdata->vzold, m, n, p);
 
-                dvx -= m > 0 ? GETVALUE(simdata->vxold, m - 1, n, p) : *read_from_buffer(simdata->v_buf_old, -1, n, p);
-                dvy -= n > 0 ? GETVALUE(simdata->vyold, m, n - 1, p) : *read_from_buffer(simdata->v_buf_old, m, -1, p);
-                dvz -= p > 0 ? GETVALUE(simdata->vzold, m, n, p - 1) : *read_from_buffer(simdata->v_buf_old, m, n, -1);
+                dvx -= m > 0 ? GETVALUE(simdata->vxold, m - 1, n, p) : *buffer_index(simdata->v_recv_buf, n, p, DIR_X);
+                dvy -= n > 0 ? GETVALUE(simdata->vyold, m, n - 1, p) : *buffer_index(simdata->v_recv_buf, m, p, DIR_Y);
+                dvz -= p > 0 ? GETVALUE(simdata->vzold, m, n, p - 1) : *buffer_index(simdata->v_recv_buf, m, n, DIR_Z);
 
                 double prev_p = GETVALUE(simdata->pold, m, n, p);
 
@@ -349,9 +357,9 @@ void update_velocities(simulation_data_t* simdata, int coords[], int dims[]) {
 
                 double p_mnq = GETVALUE(simdata->pold, m, n, p);
 
-                double p_x = m + 1 < numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : *read_from_buffer(simdata->p_buf_old, m + 1, n, p);
-                double p_y = n + 1 < numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : *read_from_buffer(simdata->p_buf_old, m, n + 1, p);
-                double p_z = p + 1 < numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : *read_from_buffer(simdata->p_buf_old, m, n, p + 1);
+                double p_x = m + 1 < numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : *buffer_index(simdata->p_recv_buf, n, p, DIR_X);
+                double p_y = n + 1 < numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : *buffer_index(simdata->p_recv_buf, m, p, DIR_Y);
+                double p_z = p + 1 < numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : *buffer_index(simdata->p_recv_buf, m, n, DIR_Z);
 
                 double dpx = p_x - p_mnq;
                 if (coords[0] == dims[0] - 1 && m + 1 >= numnodesx) {

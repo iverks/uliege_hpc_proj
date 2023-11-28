@@ -96,14 +96,23 @@ typedef struct data {
 } data_t;
 
 typedef enum buffer_direction {
-    X_MIN = 0,
-    Y_MIN,
-    Z_MIN,
-    X_MAX,
-    Y_MAX,
-    Z_MAX,
+    DIR_X = 0,
+    DIR_Y,
+    DIR_Z,
     BUFFER_DIR_TYPE_END
 } buffer_direction_t;
+
+typedef enum send_direction {
+    SEND_POSITIVE = 0,
+    SEND_NEGATIVE,
+    SEND_TYPE_END
+} send_direction_t;
+
+typedef enum send_or_rcv {
+    SEND = 0,
+    RCV,
+    SEND_OR_RCV_TYPE_END
+} send_or_rcv_t;
 
 typedef struct buffer {
     grid_t grid;
@@ -124,6 +133,8 @@ typedef struct simulation_data {
     data_t* write_data;         // Structured
     double* write_data_buffer;  // Unstructured
 
-    buffer_t *p_buf_old, *p_buf_new;
-    buffer_t *v_buf_old, *v_buf_new;
+    buffer_t *p_recv_buf, *p_recv_buf_intransmit;
+    buffer_t *p_send_buf, *p_send_buf_intransmit;
+    buffer_t *v_recv_buf, *v_recv_buf_intransmit;
+    buffer_t *v_send_buf, *v_send_buf_intransmit;
 } simulation_data_t;

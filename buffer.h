@@ -14,35 +14,7 @@
  */
 buffer_t* allocate_buffer(grid_t* grid);
 
-void create_v_recv_request(int timestep,
-                           MPI_Request* vx_recv_req,
-                           MPI_Request* vy_recv_req,
-                           MPI_Request* vz_recv_req, buffer_t* v_buf_new, MPI_Comm cart_comm);
-
-void rotate_v_recv_request(int timestep,
-                           MPI_Request* vx_recv_req,
-                           MPI_Request* vy_recv_req,
-                           MPI_Request* vz_recv_req, buffer_t* v_buf_old, buffer_t* v_buf_new, MPI_Comm cart_comm);
-
-void rotate_v_send_request(int timestep,
-                           MPI_Request* vx_send_req,
-                           MPI_Request* vy_send_req,
-                           MPI_Request* vz_send_req, buffer_t* v_buf_old, buffer_t* v_buf_new, MPI_Comm cart_comm);
-
-void create_p_recv_request(int timestep,
-                           MPI_Request* px_recv_req,
-                           MPI_Request* py_recv_req,
-                           MPI_Request* pz_recv_req, buffer_t* p_buf_new, MPI_Comm cart_comm);
-
-void rotate_p_recv_request(int timestep,
-                           MPI_Request* px_recv_req,
-                           MPI_Request* py_recv_req,
-                           MPI_Request* pz_recv_req, buffer_t* p_buf_old, buffer_t* p_buf_new, MPI_Comm cart_comm);
-
-void rotate_p_send_request(int timestep,
-                           MPI_Request* px_send_req,
-                           MPI_Request* py_send_req,
-                           MPI_Request* pz_send_req, buffer_t* p_buf_old, buffer_t* p_buf_new, MPI_Comm cart_comm);
+void do_mpi_request(int timestep, MPI_Request reqs[], buffer_t* buf, buffer_t* buf_intransmit, send_direction_t send_dir, send_or_rcv_t send_or_rcv, MPI_Comm cart_comm);
 
 void copy_send_p_data_to_buffers(simulation_data_t* simdata);
 
@@ -65,7 +37,5 @@ void fill_buffers(buffer_t* dat, double val);
  * @brief Correctly frees all buffers of data object
  */
 void free_buffers(buffer_t* dat);
-
-double* read_from_buffer(buffer_t* data, int m, int n, int p);
 
 int get_buffer_size(buffer_t* data, buffer_direction_t b_dir);

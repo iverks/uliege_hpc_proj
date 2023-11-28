@@ -4,7 +4,7 @@
 #SBATCH --ntasks=27
 #SBATCH --cpus-per-task=1
 #SBATCH --time=01:00
-#SBATCH --output=./output/job%2t-%s.out
+#SBATCH --output=./output/runner.out
 
 echo "Hello! I'm job with ID ${SLURM_JOBID}."
 echo "I'm running on compute node(s) ${SLURM_JOB_NODELIST}."
