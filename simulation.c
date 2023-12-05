@@ -1,22 +1,15 @@
 #include "simulation.h"
 
 #include <math.h>
+#include <omp.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "output.h"
 #include "utilities.h"
 
-void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[], int dims[], int cart_rank) {
-    int x_coord = coords[0];
-    int y_coord = coords[1];
-    int z_coord = coords[2];
-
-    int x_dim = dims[0];
-    int y_dim = dims[1];
-    int z_dim = dims[2];
-
-    if (read_paramfile(&simdata->params, params_filename, coords) != 0) {
+void init_simulation(simulation_data_t* simdata, const char* params_filename) {
+    if (read_paramfile(&simdata->params, params_filename) != 0) {
         printf("Failed to read parameters. Aborting...\n\n");
         exit(1);
     }
@@ -61,55 +54,19 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     fclose(rhofp);
     fclose(cfp);
 
-    // Note: The way this is done makes rounding sometimes remove a single row from the simulation
-    // We deemed this a non-problem, since 1 row out of a 100 is very few.
-    int totalnumnodesx = MAX(floor((rhoin_grid.xmax - rhoin_grid.xmin) / (simdata->params.dx)), 1);
-    int totalnumnodesy = MAX(floor((rhoin_grid.ymax - rhoin_grid.ymin) / (simdata->params.dx)), 1);
-    int totalnumnodesz = MAX(floor((rhoin_grid.zmax - rhoin_grid.zmin) / (simdata->params.dx)), 1);
-    DEBUG_PRINTF("Total num nodes on grid is %dx%dx%d", totalnumnodesx, totalnumnodesy, totalnumnodesz);
+    sim_grid.xmin = rhoin_grid.xmin;
+    sim_grid.xmax = rhoin_grid.xmax;
+    sim_grid.ymin = rhoin_grid.ymin;
+    sim_grid.ymax = rhoin_grid.ymax;
+    sim_grid.zmin = rhoin_grid.zmin;
+    sim_grid.zmax = rhoin_grid.zmax;
 
-    sim_grid.numnodesx = totalnumnodesx / x_dim;
-    sim_grid.numnodesy = totalnumnodesy / y_dim;
-    sim_grid.numnodesz = totalnumnodesz / z_dim;
-    // Compensate for errors caused by division
-    totalnumnodesx = sim_grid.numnodesx * x_dim;
-    totalnumnodesy = sim_grid.numnodesy * y_dim;
-    totalnumnodesz = sim_grid.numnodesz * z_dim;
-
-    sim_grid.xmin = rhoin_grid.xmin + (sim_grid.numnodesx) * x_coord * simdata->params.dx;
-    sim_grid.xmax = rhoin_grid.xmin + (sim_grid.numnodesx) * (x_coord + 1) * simdata->params.dx;
-    sim_grid.ymin = rhoin_grid.ymin + (sim_grid.numnodesy) * y_coord * simdata->params.dx;
-    sim_grid.ymax = rhoin_grid.ymin + (sim_grid.numnodesy) * (y_coord + 1) * simdata->params.dx;
-    sim_grid.zmin = rhoin_grid.zmin + (sim_grid.numnodesz) * z_coord * simdata->params.dx;
-    sim_grid.zmax = rhoin_grid.zmin + (sim_grid.numnodesz) * (z_coord + 1) * simdata->params.dx;
-
-    // Write buffer handling for collection
-    grid_t write_buffer_grid;
-    if (cart_rank == 0) {
-        write_buffer_grid.numnodesx = totalnumnodesx;
-        write_buffer_grid.numnodesy = totalnumnodesy;
-        write_buffer_grid.numnodesz = totalnumnodesz;
-
-        write_buffer_grid.xmin = rhoin_grid.xmin;
-        write_buffer_grid.xmax = rhoin_grid.xmin + totalnumnodesx * simdata->params.dx;
-        write_buffer_grid.ymin = rhoin_grid.ymin;
-        write_buffer_grid.ymax = rhoin_grid.ymin + totalnumnodesy * simdata->params.dx;
-        write_buffer_grid.zmin = rhoin_grid.zmin;
-        write_buffer_grid.zmax = rhoin_grid.zmin + totalnumnodesz * simdata->params.dx;
-
-        int numnodestot = NUMNODESTOT(write_buffer_grid);
-
-        if ((simdata->write_data = allocate_data(&write_buffer_grid)) == NULL ||
-            (simdata->write_data_buffer = malloc(numnodestot * sizeof(double))) == NULL) {
-            printf("Failed to allocate memory for collection. Aborting...\n\n");
-            fflush(stdout);
-            exit(1);
-        }
-        fill_data(simdata->write_data, 0.0);
-        for (int i = 0; i < numnodestot; i++) {
-            simdata->write_data_buffer[i] = 0;
-        }
-    }
+    sim_grid.numnodesx =
+        MAX(floor((sim_grid.xmax - sim_grid.xmin) / simdata->params.dx), 1);
+    sim_grid.numnodesy =
+        MAX(floor((sim_grid.ymax - sim_grid.ymin) / simdata->params.dx), 1);
+    sim_grid.numnodesz =
+        MAX(floor((sim_grid.zmax - sim_grid.zmin) / simdata->params.dx), 1);
 
     if (interpolate_inputmaps(simdata, &sim_grid, c_map, rho_map) != 0) {
         printf(
@@ -117,7 +74,7 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
         exit(1);
     }
 
-    if (simdata->params.outrate > 0 && simdata->params.outputs != NULL && cart_rank == 0) {
+    if (simdata->params.outrate > 0 && simdata->params.outputs != NULL) {
         for (int i = 0; i < simdata->params.numoutputs; i++) {
             char* outfilei = simdata->params.outputs[i].filename;
 
@@ -134,7 +91,7 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
         for (int i = 0; i < simdata->params.numoutputs; i++) {
             output_t* output = &simdata->params.outputs[i];
 
-            if (open_outputfile(output, &write_buffer_grid) != 0) {
+            if (open_outputfile(output, &sim_grid) != 0) {
                 printf("Failed to open output file: '%s'. Aborting...\n\n",
                        output->filename);
                 exit(1);
@@ -162,27 +119,6 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     fill_data(simdata->vyold, 0.0);
     fill_data(simdata->vznew, 0.0);
     fill_data(simdata->vzold, 0.0);
-
-    if ((simdata->p_send_buf = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->p_send_buf_intransmit = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->p_recv_buf = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->p_recv_buf_intransmit = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->v_send_buf = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->v_send_buf_intransmit = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->v_recv_buf = allocate_buffer(&sim_grid)) == NULL ||
-        (simdata->v_recv_buf_intransmit = allocate_buffer(&sim_grid)) == NULL) {
-        printf("Failed to allocate buffer memory. Aborting...\n\n");
-        exit(1);
-    }
-
-    fill_buffers(simdata->p_send_buf, 0.0);
-    fill_buffers(simdata->p_send_buf_intransmit, 0.0);
-    fill_buffers(simdata->p_recv_buf, 0.0);
-    fill_buffers(simdata->p_recv_buf_intransmit, 0.0);
-    fill_buffers(simdata->v_send_buf, 0.0);
-    fill_buffers(simdata->v_send_buf_intransmit, 0.0);
-    fill_buffers(simdata->v_recv_buf, 0.0);
-    fill_buffers(simdata->v_recv_buf_intransmit, 0.0);
 
     printf("\n");
     printf(" Grid spacing: %g\n", simdata->params.dx);
@@ -231,9 +167,7 @@ void finalize_simulation(simulation_data_t* simdata) {
             DEBUG_PRINTF("Freeing output %d, %s", i, simdata->params.outputs[i].filename);
             free(simdata->params.outputs[i].filename);
 
-            int cart_rank;
-            MPI_Comm_rank(MPI_COMM_WORLD, &cart_rank);
-            if (simdata->params.outrate > 0 && cart_rank == 0) {
+            if (simdata->params.outrate > 0) {
                 fclose(simdata->params.outputs[i].fp);
             }
         }
@@ -330,9 +264,9 @@ void update_pressure(simulation_data_t* simdata) {
                 double dvy = GETVALUE(simdata->vyold, m, n, p);
                 double dvz = GETVALUE(simdata->vzold, m, n, p);
 
-                dvx -= m > 0 ? GETVALUE(simdata->vxold, m - 1, n, p) : *buffer_index(simdata->v_recv_buf, n, p, DIR_X);
-                dvy -= n > 0 ? GETVALUE(simdata->vyold, m, n - 1, p) : *buffer_index(simdata->v_recv_buf, m, p, DIR_Y);
-                dvz -= p > 0 ? GETVALUE(simdata->vzold, m, n, p - 1) : *buffer_index(simdata->v_recv_buf, m, n, DIR_Z);
+                dvx -= m > 0 ? GETVALUE(simdata->vxold, m - 1, n, p) : 0;
+                dvy -= n > 0 ? GETVALUE(simdata->vyold, m, n - 1, p) : 0;
+                dvz -= p > 0 ? GETVALUE(simdata->vzold, m, n, p - 1) : 0;
 
                 double prev_p = GETVALUE(simdata->pold, m, n, p);
 
@@ -343,13 +277,14 @@ void update_pressure(simulation_data_t* simdata) {
     }
 }
 
-void update_velocities(simulation_data_t* simdata, int coords[], int dims[]) {
+void update_velocities(simulation_data_t* simdata) {
     const double dtdx = simdata->params.dt / simdata->params.dx;
 
     const int numnodesx = NUMNODESX(simdata->vxold);
     const int numnodesy = NUMNODESY(simdata->vxold);
     const int numnodesz = NUMNODESZ(simdata->vxold);
 
+#pragma omp parallel for collapse(2)
     for (int m = 0; m < numnodesx; m++) {
         for (int n = 0; n < numnodesy; n++) {
             for (int p = 0; p < numnodesz; p++) {
@@ -357,20 +292,20 @@ void update_velocities(simulation_data_t* simdata, int coords[], int dims[]) {
 
                 double p_mnq = GETVALUE(simdata->pold, m, n, p);
 
-                double p_x = m + 1 < numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : *buffer_index(simdata->p_recv_buf, n, p, DIR_X);
-                double p_y = n + 1 < numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : *buffer_index(simdata->p_recv_buf, m, p, DIR_Y);
-                double p_z = p + 1 < numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : *buffer_index(simdata->p_recv_buf, m, n, DIR_Z);
+                double p_x = m + 1 < numnodesx ? GETVALUE(simdata->pold, m + 1, n, p) : 0;
+                double p_y = n + 1 < numnodesy ? GETVALUE(simdata->pold, m, n + 1, p) : 0;
+                double p_z = p + 1 < numnodesz ? GETVALUE(simdata->pold, m, n, p + 1) : 0;
 
                 double dpx = p_x - p_mnq;
-                if (coords[0] == dims[0] - 1 && m + 1 >= numnodesx) {
+                if (m + 1 >= numnodesx) {
                     dpx = 0.0;
                 }
                 double dpy = p_y - p_mnq;
-                if (coords[1] == dims[1] - 1 && n + 1 >= numnodesy) {
+                if (n + 1 >= numnodesy) {
                     dpy = 0.0;
                 }
                 double dpz = p_z - p_mnq;
-                if (coords[2] == dims[2] - 1 && p + 1 >= numnodesz) {
+                if (p + 1 >= numnodesz) {
                     dpz = 0.0;
                 }
 

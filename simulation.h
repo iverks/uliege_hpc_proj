@@ -1,5 +1,4 @@
 #pragma once
-#include "buffer.h"
 #include "data.h"
 #include "parameters.h"
 #include "types.h"
@@ -14,11 +13,10 @@
  * @param simdata [OUT] a simulation data that will be used to store the data
  * used during the simulation
  * @param params_filename [IN] a path to a parameter file to read
- * @param coords [IN] cartesian coordinates representing the position
  * @param dims [IN] number of slices in each direction
  * in the grid this process corresponds to
  */
-void init_simulation(simulation_data_t* simdata, const char* params_filename, int coords[], int dims[], int cart_rank);
+void init_simulation(simulation_data_t* simdata, const char* params_filename);
 
 /**
  * @brief Finalize the simulation by deallocating the data used for the
@@ -53,7 +51,7 @@ void update_pressure(simulation_data_t* simdata);
  * @param simdata [INOUT] a simulation data object used to get the input and
  * store result of the update step
  */
-void update_velocities(simulation_data_t* simdata, int coords[], int dims[]);
+void update_velocities(simulation_data_t* simdata);
 
 /**
  * @brief Swap the time steps data, i.e., make the new time step the old one
