@@ -350,6 +350,7 @@ void update_velocities(simulation_data_t* simdata, int coords[], int dims[]) {
     const int numnodesy = NUMNODESY(simdata->vxold);
     const int numnodesz = NUMNODESZ(simdata->vxold);
 
+#pragma omp parallel for collapse(2)
     for (int m = 0; m < numnodesx; m++) {
         for (int n = 0; n < numnodesy; n++) {
             for (int p = 0; p < numnodesz; p++) {
