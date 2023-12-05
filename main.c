@@ -69,7 +69,7 @@ int main(int argc, const char* argv[]) {
 
     double start = GET_TIME();
     // Prepare to recieve already in loop idx 0
-    do_mpi_request(0, p_recv_reqs, simdata.p_recv_buf, simdata.p_recv_buf_intransmit, SEND_NEGATIVE, RCV, cart_comm);
+    do_mpi_request(0, p_recv_reqs, simdata.p_recv_buf, simdata.p_recv_buf_intransmit, SEND_POSITIVE, RCV, cart_comm);
 
     for (int tstep = 0; tstep <= numtimesteps; tstep++) {
         apply_source(&simdata, tstep);
@@ -152,20 +152,20 @@ int main(int argc, const char* argv[]) {
         }
 
         // Create V recv request for t = tstep
-        do_mpi_request(tstep, v_recv_reqs, simdata.v_recv_buf, simdata.v_recv_buf_intransmit, SEND_POSITIVE, RCV, cart_comm);
+        do_mpi_request(tstep, v_recv_reqs, simdata.v_recv_buf, simdata.v_recv_buf_intransmit, SEND_NEGATIVE, RCV, cart_comm);
         update_pressure(&simdata);
         swap_p_timesteps(&simdata);
         copy_send_p_data_to_buffers(&simdata);
         // Send p for tstep
-        do_mpi_request(tstep, p_send_reqs, simdata.p_send_buf, simdata.p_send_buf_intransmit, SEND_POSITIVE, SEND, cart_comm);
+        do_mpi_request(tstep, p_send_reqs, simdata.p_send_buf, simdata.p_send_buf_intransmit, SEND_NEGATIVE, SEND, cart_comm);
 
         // Create p recv request for t = tstep + 1
-        do_mpi_request(tstep + 1, p_recv_reqs, simdata.p_recv_buf, simdata.p_recv_buf_intransmit, SEND_NEGATIVE, RCV, cart_comm);
+        do_mpi_request(tstep + 1, p_recv_reqs, simdata.p_recv_buf, simdata.p_recv_buf_intransmit, SEND_POSITIVE, RCV, cart_comm);
         update_velocities(&simdata, coords, dims);
         swap_v_timesteps(&simdata);
         copy_send_v_data_to_buffers(&simdata);
         // Send p for tstep
-        do_mpi_request(tstep, v_send_reqs, simdata.v_send_buf, simdata.v_send_buf_intransmit, SEND_NEGATIVE, SEND, cart_comm);
+        do_mpi_request(tstep, v_send_reqs, simdata.v_send_buf, simdata.v_send_buf_intransmit, SEND_POSITIVE, SEND, cart_comm);
     }
 
     DEBUG_PRINT("All good, time to clean up");

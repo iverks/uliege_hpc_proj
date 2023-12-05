@@ -1,5 +1,6 @@
 **/*.dat
 fdtd
+fdtd_instr
 **/*.ogg
 **/*.mp3
 **/*.msh
