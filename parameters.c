@@ -60,7 +60,7 @@ int read_audiosource(char* filename, source_t* source) {
     return 0;
 }
 
-int read_outputparam(FILE* fp, output_t* output, int coords[]) {
+int read_outputparam(FILE* fp, output_t* output) {
     if (fp == NULL || output == NULL) {
         DEBUG_PRINT("NULL passed as argement");
         return 1;
@@ -69,7 +69,6 @@ int read_outputparam(FILE* fp, output_t* output, int coords[]) {
     char typekeyword[BUFSZ_SMALL];
     char sourcekeyword[BUFSZ_SMALL];
     char filename[BUFSZ_LARGE];
-    char formatted_filename[BUFSZ_HUMONGOUS];
 
     double posxyz[3] = {0.0, 0.0, 0.0};
 
@@ -130,8 +129,7 @@ int read_outputparam(FILE* fp, output_t* output, int coords[]) {
         return 1;
     }
 
-    sprintf(formatted_filename, "%d_%d_%d_%s", coords[0], coords[1], coords[2], filename);
-    output->filename = copy_string(formatted_filename);
+    output->filename = copy_string(filename);
     output->type = type;
     output->source = source;
     output->posx = posxyz[0];
@@ -209,7 +207,7 @@ int read_sourceparam(FILE* fp, source_t* source) {
     return 0;
 }
 
-int read_paramfile(parameters_t* params, const char* filename, int coords[]) {
+int read_paramfile(parameters_t* params, const char* filename) {
     if (params == NULL || filename == NULL) {
         DEBUG_PRINT("Invalid print_out params or filename");
         return 1;
@@ -246,7 +244,7 @@ int read_paramfile(parameters_t* params, const char* filename, int coords[]) {
               fscanf(fp, " ") == 0);
 
     while (readok != 0 && numoutputs < MAX_OUTPUTS && feof(fp) == 0) {
-        readok = (read_outputparam(fp, &outputs[numoutputs++], coords) == 0 &&
+        readok = (read_outputparam(fp, &outputs[numoutputs++]) == 0 &&
                   fscanf(fp, " ") == 0);
     }
 

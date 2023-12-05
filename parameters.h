@@ -31,7 +31,7 @@ int read_audiosource(char* filename, source_t* source);
  * read from the parameter file
  * @return int 0 if read was a success, returns 1 otherwise
  */
-int read_outputparam(FILE* fp, output_t* output, int coords[]);
+int read_outputparam(FILE* fp, output_t* output);
 
 /**
  * @brief Read a source specification parameter from a parameter file
@@ -51,7 +51,7 @@ int read_sourceparam(FILE* fp, source_t* source);
  * @param filename [IN] path to the parameter file to read
  * @return int 0 if read was a success, returns 1 otherwise
  */
-int read_paramfile(parameters_t* params, const char* filename, int coords[]);
+int read_paramfile(parameters_t* params, const char* filename);
 
 /**
  * @brief Open an existing data file for reading. This function opens the file

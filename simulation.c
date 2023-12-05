@@ -16,7 +16,7 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename, in
     int y_dim = dims[1];
     int z_dim = dims[2];
 
-    if (read_paramfile(&simdata->params, params_filename, coords) != 0) {
+    if (read_paramfile(&simdata->params, params_filename) != 0) {
         printf("Failed to read parameters. Aborting...\n\n");
         exit(1);
     }
