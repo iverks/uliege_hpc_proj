@@ -252,6 +252,7 @@ void update_pressure(simulation_data_t* simdata) {
     const int numnodesy = NUMNODESY(simdata->pold);
     const int numnodesz = NUMNODESZ(simdata->pold);
 
+#pragma omp parallel for collapse(2)
     for (int m = 0; m < numnodesx; m++) {
         for (int n = 0; n < numnodesy; n++) {
             for (int p = 0; p < numnodesz; p++) {
