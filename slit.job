@@ -1,16 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=JOB_ID_NAME
 #SBATCH --nodes=1-1
-#SBATCH --ntasks=27
 #SBATCH --cpus-per-task=1
 #SBATCH --time=01:00:00
 #SBATCH --output=./output/slit.out
 
 echo "Hello! I'm job with ID ${SLURM_JOBID}."
 echo "I'm running on compute node(s) ${SLURM_JOB_NODELIST}."
-
-module load OpenMPI
-
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 cd ./inputs/slits
