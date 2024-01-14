@@ -159,9 +159,13 @@ void closest_index(grid_t* grid, double x, double y, double z, int* cx, int* cy,
 
 double trilinear_interpolate(data_t* dat, double x, double y, double z) {
     grid_t* grid = &dat->grid;
-    int lx = (int)floor((x - grid->xmin) / (grid->xmax - grid->xmin) * grid->numnodesx);
-    int ly = (int)floor((y - grid->ymin) / (grid->ymax - grid->ymin) * grid->numnodesy);
-    int lz = (int)floor((z - grid->zmin) / (grid->zmax - grid->zmin) * grid->numnodesz);
+    double x_on_grid = (x - grid->xmin) / (grid->xmax - grid->xmin) * grid->numnodesx;
+    double y_on_grid = (y - grid->ymin) / (grid->ymax - grid->ymin) * grid->numnodesy;
+    double z_on_grid = (z - grid->zmin) / (grid->zmax - grid->zmin) * grid->numnodesz;
+
+    int lx = (int)floor(x_on_grid);
+    int ly = (int)floor(y_on_grid);
+    int lz = (int)floor(z_on_grid);
 
     // The "bottom" corner must be a full point away from the end
     lx = (lx < 0) ? 0 : lx;
@@ -172,9 +176,9 @@ double trilinear_interpolate(data_t* dat, double x, double y, double z) {
     lz = (lz > grid->numnodesz - 2) ? grid->numnodesz - 2 : lz;
 
     // Relative distances from "origin" of the cube
-    double x_d = (x - (double)lx);
-    double y_d = (y - (double)ly);
-    double z_d = (z - (double)lz);
+    double x_d = (x_on_grid - (double)lx);
+    double y_d = (y_on_grid - (double)ly);
+    double z_d = (z_on_grid - (double)lz);
 
     double c_000 = GETVALUE(dat, lx, ly, lz);
     double c_100 = GETVALUE(dat, lx + 1, ly, lz);
@@ -194,5 +198,6 @@ double trilinear_interpolate(data_t* dat, double x, double y, double z) {
     double c_1 = c_01 * (1 - y_d) + c_11 * y_d;
 
     double c = c_0 * (1 - z_d) + c_1 * z_d;
+
     return c;
 }
