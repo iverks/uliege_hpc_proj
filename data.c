@@ -172,9 +172,9 @@ double trilinear_interpolate(data_t* dat, double x, double y, double z) {
     lz = (lz > grid->numnodesz - 2) ? grid->numnodesz - 2 : lz;
 
     // Relative distances from "origin" of the cube
-    double x_d = (x - (double)lx) / (grid->xmax - grid->xmin) * grid->numnodesx;
-    double y_d = (y - (double)ly) / (grid->ymax - grid->ymin) * grid->numnodesy;
-    double z_d = (z - (double)lz) / (grid->zmax - grid->zmin) * grid->numnodesz;
+    double x_d = (x - (double)lx);
+    double y_d = (y - (double)ly);
+    double z_d = (z - (double)lz);
 
     double c_000 = GETVALUE(dat, lx, ly, lz);
     double c_100 = GETVALUE(dat, lx + 1, ly, lz);
