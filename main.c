@@ -38,8 +38,21 @@ int main(int argc, const char* argv[]) {
     int numtimesteps = floor(simdata.params.maxt / simdata.params.dt);
 
     double start = GET_TIME();
-    // Prepare to recieve already in loop idx 0
 
+    // Map vxold, vyold, vzold, and pold arrays for the duration of the simulation loop
+    // and allocate memory for vxnew, vynew, vznew, and pnew on the device
+    #pragma omp target data map(to: simdata.vxold[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.vyold[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.vzold[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.pold[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.c[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.rhohalf[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.rho[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz]) \
+                            map(tofrom: simdata.vxnew[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.vynew[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.vznew[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz], \
+                                       simdata.pnew[0:simdata.sim_grid.numnodesx*simdata.sim_grid.numnodesy*simdata.sim_grid.numnodesz]) 
+    
     for (int tstep = 0; tstep <= numtimesteps; tstep++) {
         apply_source(&simdata, tstep);
 

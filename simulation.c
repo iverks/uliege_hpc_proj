@@ -16,7 +16,7 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename) {
 
     grid_t rhoin_grid;
     grid_t cin_grid;
-    grid_t sim_grid;
+
 
     int rho_numstep;
     int c_numstep;
@@ -54,21 +54,22 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename) {
     fclose(rhofp);
     fclose(cfp);
 
-    sim_grid.xmin = rhoin_grid.xmin;
-    sim_grid.xmax = rhoin_grid.xmax;
-    sim_grid.ymin = rhoin_grid.ymin;
-    sim_grid.ymax = rhoin_grid.ymax;
-    sim_grid.zmin = rhoin_grid.zmin;
-    sim_grid.zmax = rhoin_grid.zmax;
+    simdata->sim_grid.xmin = rhoin_grid.xmin;
+    simdata->sim_grid.xmax = rhoin_grid.xmax;
+    simdata->sim_grid.ymin = rhoin_grid.ymin;
+    simdata->sim_grid.ymax = rhoin_grid.ymax;
+    simdata->sim_grid.zmin = rhoin_grid.zmin;
+    simdata->sim_grid.zmax = rhoin_grid.zmax;
 
-    sim_grid.numnodesx =
-        MAX(floor((sim_grid.xmax - sim_grid.xmin) / simdata->params.dx), 1);
-    sim_grid.numnodesy =
-        MAX(floor((sim_grid.ymax - sim_grid.ymin) / simdata->params.dx), 1);
-    sim_grid.numnodesz =
-        MAX(floor((sim_grid.zmax - sim_grid.zmin) / simdata->params.dx), 1);
+    simdata->sim_grid.numnodesx =
+        MAX(floor((simdata->sim_grid.xmax - simdata->sim_grid.xmin) / simdata->params.dx), 1);
+    simdata->sim_grid.numnodesy =
+        MAX(floor((simdata->sim_grid.ymax - simdata->sim_grid.ymin) / simdata->params.dx), 1);
+    simdata->sim_grid.numnodesz =
+        MAX(floor((simdata->sim_grid.zmax - simdata->sim_grid.zmin) / simdata->params.dx), 1);
 
-    if (interpolate_inputmaps(simdata, &sim_grid, c_map, rho_map) != 0) {
+
+    if (interpolate_inputmaps(simdata, &simdata->sim_grid, c_map, rho_map) != 0) {
         printf(
             "Error while converting input map to simulation grid. Aborting...\n\n");
         exit(1);
@@ -91,7 +92,7 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename) {
         for (int i = 0; i < simdata->params.numoutputs; i++) {
             output_t* output = &simdata->params.outputs[i];
 
-            if (open_outputfile(output, &sim_grid) != 0) {
+            if (open_outputfile(output, &simdata->sim_grid) != 0) {
                 printf("Failed to open output file: '%s'. Aborting...\n\n",
                        output->filename);
                 exit(1);
@@ -99,14 +100,14 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename) {
         }
     }
 
-    if ((simdata->pold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->pnew = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vxold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vxnew = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vyold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vynew = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vzold = allocate_data(&sim_grid)) == NULL ||
-        (simdata->vznew = allocate_data(&sim_grid)) == NULL) {
+    if ((simdata->pold = allocate_data(&simdata->sim_grid)) == NULL ||
+        (simdata->pnew = allocate_data(&simdata->sim_grid)) == NULL ||
+        (simdata->vxold = allocate_data(&simdata->sim_grid)) == NULL ||
+        (simdata->vxnew = allocate_data(&simdata->sim_grid)) == NULL ||
+        (simdata->vyold = allocate_data(&simdata->sim_grid)) == NULL ||
+        (simdata->vynew = allocate_data(&simdata->sim_grid)) == NULL ||
+        (simdata->vzold = allocate_data(&simdata->sim_grid)) == NULL ||
+        (simdata->vznew = allocate_data(&simdata->sim_grid)) == NULL) {
         printf("Failed to allocate memory. Aborting...\n\n");
         exit(1);
     }
@@ -122,9 +123,9 @@ void init_simulation(simulation_data_t* simdata, const char* params_filename) {
 
     printf("\n");
     printf(" Grid spacing: %g\n", simdata->params.dx);
-    printf("  Grid size X: %d\n", sim_grid.numnodesx);
-    printf("  Grid size Y: %d\n", sim_grid.numnodesy);
-    printf("  Grid size Z: %d\n", sim_grid.numnodesz);
+    printf("  Grid size X: %d\n", simdata->sim_grid.numnodesx);
+    printf("  Grid size Y: %d\n", simdata->sim_grid.numnodesy);
+    printf("  Grid size Z: %d\n", simdata->sim_grid.numnodesz);
     printf("    Time step: %g\n", simdata->params.dt);
     printf(" Maximum time: %g\n\n", simdata->params.maxt);
 
@@ -252,7 +253,7 @@ void update_pressure(simulation_data_t* simdata) {
     const int numnodesy = NUMNODESY(simdata->pold);
     const int numnodesz = NUMNODESZ(simdata->pold);
 
-#pragma omp parallel for collapse(2)
+#pragma omp target teams distribute parallel for collapse(3)
     for (int m = 0; m < numnodesx; m++) {
         for (int n = 0; n < numnodesy; n++) {
             for (int p = 0; p < numnodesz; p++) {
@@ -282,10 +283,10 @@ void update_velocities(simulation_data_t* simdata) {
     const double dtdx = simdata->params.dt / simdata->params.dx;
 
     const int numnodesx = NUMNODESX(simdata->vxold);
-    const int numnodesy = NUMNODESY(simdata->vxold);
-    const int numnodesz = NUMNODESZ(simdata->vxold);
+    const int numnodesy = NUMNODESY(simdata->vyold);
+    const int numnodesz = NUMNODESZ(simdata->vzold);
 
-#pragma omp parallel for collapse(2)
+#pragma omp target teams distribute parallel for collapse(3)
     for (int m = 0; m < numnodesx; m++) {
         for (int n = 0; n < numnodesy; n++) {
             for (int p = 0; p < numnodesz; p++) {

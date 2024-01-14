@@ -133,6 +133,8 @@ typedef struct simulation_data {
     data_t* write_data;         // Structured
     double* write_data_buffer;  // Unstructured
 
+    grid_t sim_grid;
+
     buffer_t *p_recv_buf, *p_recv_buf_intransmit;
     buffer_t *p_send_buf, *p_send_buf_intransmit;
     buffer_t *v_recv_buf, *v_recv_buf_intransmit;
