@@ -4,11 +4,13 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=01:00
 #SBATCH --output=./output/runner.out
+#SBATCH --account=ulghpsc
 
 echo "Hello! I'm job with ID ${SLURM_JOBID}."
 echo "I'm running on compute node(s) ${SLURM_JOB_NODELIST}."
 
 module load OpenMPI
+module load Clang
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 

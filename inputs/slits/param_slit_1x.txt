@@ -1,0 +1,8 @@
+5e-3
+5e-8
+0.001
+200
+cin_slit_1x.dat
+rhoin_slit_1x.dat
+sine 6800 0.12 0.25 0.25
+all pressure out_p_slit_1x_025.dat
