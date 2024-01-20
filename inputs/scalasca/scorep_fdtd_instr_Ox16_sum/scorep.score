@@ -1,0 +1,53 @@
+
+Estimated aggregate size of event trace:                   9MB
+Estimated requirements for largest trace buffer (max_buf): 9MB
+Estimated memory requirements (SCOREP_TOTAL_MEMORY):       41MB
+(hint: When tracing set SCOREP_TOTAL_MEMORY=41MB to avoid intermediate flushes
+ or reduce requirements using USR regions filters.)
+
+flt     type max_buf[B]    visits time[s] time[%] time/visit[us]  region
+ -       ALL 80,805,881 3,204,163   76.97   100.0          24.02  ALL
+ -       USR 72,193,512 3,008,063    0.87     1.1           0.29  USR
+ -       OMP  8,516,256   192,096   76.05    98.8         395.88  OMP
+ -       COM     96,072     4,003    0.05     0.1          12.22  COM
+ -    SCOREP         41         1    0.00     0.0        3213.58  SCOREP
+
+ *       ALL  8,805,881   204,163   76.61    99.5         375.25  ALL-FLT
+ +       FLT 72,000,000 3,000,000    0.36     0.5           0.12  FLT
+ -       OMP  8,516,256   192,096   76.05    98.8         395.88  OMP-FLT
+ *       USR    193,512     8,063    0.51     0.7          63.53  USR-FLT
+ *       COM     96,072     4,003    0.05     0.1          12.22  COM-FLT
+ -    SCOREP         41         1    0.00     0.0        3213.58  SCOREP-FLT
+
+ +       USR 72,000,000 3,000,000    0.36     0.5           0.12  trilinear_interpolate
+ -       OMP  2,721,360    32,016    0.01     0.0           0.40  ?$omp?parallel?@simulation.c:255
+ -       OMP  2,721,360    32,016    0.01     0.0           0.34  ?$omp?parallel?@simulation.c:288
+ -       OMP    768,384    32,016   27.95    36.3         872.90  ?$omp?for?@simulation.c:255
+ -       OMP    768,384    32,016    9.57    12.4         299.03  ?$omp?implicit?barrier?@simulation.c:278
+ -       OMP    768,384    32,016   29.34    38.1         916.41  ?$omp?for?@simulation.c:288
+ -       OMP    768,384    32,016    9.16    11.9         286.22  ?$omp?implicit?barrier?@simulation.c:322
+ -       USR     48,024     2,001    0.00     0.0           0.19  closest_index
+ -       USR     48,024     2,001    0.00     0.0           0.44  swap_v_timesteps
+ -       USR     48,024     2,001    0.00     0.0           0.37  swap_p_timesteps
+ -       COM     48,024     2,001    0.02     0.0           9.89  update_velocities
+ -       COM     48,024     2,001    0.02     0.0          10.21  update_pressure
+ -       USR     48,024     2,001    0.00     0.0           0.75  apply_source
+ -       USR        312        13    0.00     0.0           7.47  allocate_data
+ -       USR        264        11    0.05     0.1        4487.03  write_data
+ -       USR        264        11    0.00     0.0           4.07  write_output
+ -       USR        168         7    0.01     0.0        1786.13  fill_data
+ -       USR         72         3    0.00     0.0           1.68  copy_string
+ -       USR         48         2    0.00     0.0           1.60  read_data
+ -       USR         48         2    0.02     0.0        8271.22  open_datafile
+ -    SCOREP         41         1    0.00     0.0        3213.58  fdtd_instr
+ -       COM         24         1    0.01     0.0        8678.10  main
+ -       USR         24         1    0.34     0.4      341166.60  interpolate_inputmaps
+ -       USR         24         1    0.00     0.0         857.51  create_datafile
+ -       USR         24         1    0.00     0.0           4.51  open_outputfile
+ -       USR         24         1    0.00     0.0           3.46  print_output
+ -       USR         24         1    0.00     0.0           2.87  print_source
+ -       USR         24         1    0.01     0.0       12251.05  read_paramfile
+ -       USR         24         1    0.00     0.0          17.90  read_sourceparam
+ -       USR         24         1    0.00     0.0           2.46  read_outputparam
+ -       USR         24         1    0.08     0.1       75580.67  finalize_simulation
+ -       USR         24         1    0.00     0.0         313.53  init_simulation

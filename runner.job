@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=JOB_ID_NAME
 #SBATCH --nodes=1-1
-#SBATCH --cpus-per-task=1
-#SBATCH --time=01:00
+#SBATCH --cpus-per-task=16
+#SBATCH --time=01:00:00
 #SBATCH --output=./output/runner.out
 
 echo "Hello! I'm job with ID ${SLURM_JOBID}."

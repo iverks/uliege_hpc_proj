@@ -1,0 +1,43 @@
+S=C=A=N: Sat Jan 20 19:20:12 2024: Collect start
+/usr/bin/srun ../../fdtd_instr ./param_3d.txt
+
+ Grid spacing: 0.01
+  Grid size X: 100
+  Grid size Y: 100
+  Grid size Z: 100
+    Time step: 5e-07
+ Maximum time: 0.001
+
+     Output rate: every 200 step(s)
+ Output sampling: 10000 Hz
+
+ Output files:
+
+      pressure: complete dump to file out_p.dat
+
+ Source infos:
+
+          type: sine wave
+     frequency: 3400 Hz
+    position x: 0.5
+    position y: 0.5
+    position z: 0.5
+
+  step      200/2000 (ETA:    4.455 seconds)
+  step      400/2000 (ETA:    3.952 seconds)
+  step      600/2000 (ETA:    3.439 seconds)
+  step      800/2000 (ETA:    2.940 seconds)
+  step     1000/2000 (ETA:    2.438 seconds)
+  step     1200/2000 (ETA:    1.949 seconds)
+  step     1400/2000 (ETA:    1.463 seconds)
+  step     1600/2000 (ETA:    0.975 seconds)
+  step     1800/2000 (ETA:    0.487 seconds)
+  step     2000/2000
+[DEBUG][/home/users/s/m/smage/omp/main.c:97] All good, time to clean up
+
+Elapsed 4.857660 seconds (411.927 Mupdates/s)
+
+[DEBUG][/home/users/s/m/smage/omp/simulation.c:163] I'm gonna free
+[DEBUG][/home/users/s/m/smage/omp/simulation.c:167] Freeing output 0, out_p.dat
+[DEBUG][/home/users/s/m/smage/omp/simulation.c:178] Freed simdata outputs
+S=C=A=N: Sat Jan 20 19:20:18 2024: Collect done (status=0) 6s

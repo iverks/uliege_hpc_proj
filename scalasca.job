@@ -1,11 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=JOB_ID_NAME
+#SBATCH --job-name=scalasca
 #SBATCH --nodes=1-1
-#SBATCH --cpus-per-task=1
-#SBATCH --time=01:00
+#SBATCH --cpus-per-task=16
+#SBATCH --time=01:00:00
 #SBATCH --output=./output/scalascajob.out
 
-module load OpenMPI
 module load Scalasca
 
 export OMP_PROC_BIND=true

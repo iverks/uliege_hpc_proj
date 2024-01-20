@@ -1,7 +1,4 @@
 SCOREP_REGION_NAMES_BEGIN
   EXCLUDE
-    buffer_index
-    read_from_buffer
-    MPI_Cart_coords
     trilinear_interpolate
 SCOREP_REGION_NAMES_END
